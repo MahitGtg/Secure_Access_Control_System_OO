@@ -71,15 +71,23 @@ bool account_is_expired(const account_t *acc) {
 }
 
 void account_set_unban_time(account_t *acc, time_t t) {
-  // remove the contents of this function and replace it with your own code.
-  (void) acc;
-  (void) t;
+  if (acc == NULL) {
+      log_message(LOG_ERROR, "Null pointer passed to account_set_unban_time");
+      return;
+  }
+  // setting the unban time
+  acc->unban_time = t;
+  log_message(LOG_INFO, "Unban time set for user %s", acc->userid);
 }
 
 void account_set_expiration_time(account_t *acc, time_t t) {
-  // remove the contents of this function and replace it with your own code.
-  (void) acc;
-  (void) t;
+  if (acc == NULL) {
+      log_message(LOG_ERROR, "Null pointer passed to account_set_expiration_time");
+      return;
+  }
+  // setting the expiration time
+  acc->expiration_time = t;
+  log_message(LOG_INFO, "Expiration time set for user %s", acc->userid);
 }
 
 void account_set_email(account_t *acc, const char *new_email) {
