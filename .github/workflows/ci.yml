@@ -50,6 +50,16 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y cppcheck clang-tools
         
-    - name: Run Cppcheck
+    - name: Run Cppcheck on implementation files
       run: |
-        cppcheck --enable=all --suppress=missingIncludeSystem --error-exitcode=1 src/
+        # Run strict checks on the implementation files you need to submit
+        cppcheck --enable=all --suppress=missingIncludeSystem --error-exitcode=1 \
+          src/account.c src/login.c
+        
+    - name: Run Cppcheck on test files
+      run: |
+        # Check test files but with fewer restrictions
+        cppcheck --enable=all --suppress=missingIncludeSystem \
+          --suppress=unusedFunction --error-exitcode=1 \
+          test/
+  

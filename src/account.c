@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h> /* For isdigit() */
+#include "banned.h"
 
 /**
  * Create a new account with the specified parameters.
