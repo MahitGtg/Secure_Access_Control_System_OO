@@ -1,21 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
-
-// Forward declaration and definition before any includes that use panic
-void panic(const char *msg) {
-    fprintf(stderr, "PANIC: %s\n", msg);
-    abort();
-}
-
 #include <check.h>
 #include <string.h>
 #include <unistd.h>
 #include "../src/account.h"
 #include "../src/logging.h"
-#include "../src/account.c"
 
 // test fixture setup
 static account_t *test_acc;
+
 
 void setup(void) {
     // create a test account before each test
