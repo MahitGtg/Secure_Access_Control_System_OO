@@ -24,14 +24,13 @@ TEST_DIR := test
 # See e.g. `alternate_main.c`
 TARGET = $(BIN_DIR)/app
 
+# Find test specification files and their C equivalents
 TS_FILES := $(shell find $(SRC_DIR) -name "*.ts")
-
 SRC_FILES := $(shell find $(SRC_DIR) -name "*.c") $(TS_FILES:.ts=.c)
 
 OBJ_FILES := $(SRC_FILES:.c=.o)
 # we need to uniq-ify object files to stop .ts and .c versions of tests showing up twice
 OBJ_FILES := $(shell echo $(subst $(SRC_DIR),$(BUILD_DIR),$(OBJ_FILES)) | tr ' ' '\n' | sort | uniq)
-
 
 SRC_DIRS := $(shell find $(SRC_DIR) -type d)
 INC_FLAGS := $(addprefix -I, $(SRC_DIRS))
@@ -58,14 +57,9 @@ LDFLAGS = $(PKG_LDFLAGS)
 TEST_CFLAGS = $(CFLAGS) $(SANITIZER_FLAGS)
 TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
 
-# Test flags
-TEST_CFLAGS = $(CFLAGS) $(SANITIZER_FLAGS)
-TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
-
 # how to make a .c file from a .ts file
 %.c: %.ts
 	checkmk $< > $@
-
 
 ###
 # Targets
@@ -82,7 +76,7 @@ $(TARGET): $(OBJ_FILES)
 # c
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
-	./add_banned_header.pl $<
+	./add_banned_header.pl $
 	$(CC) $(CFLAGS) $(INC_FLAGS) -MMD -MP -c $< -o $@
 
 # targets for each object file
@@ -97,11 +91,11 @@ TEST_SRC := $(wildcard $(TEST_DIR)/test_*.c)
 
 # Extract test names and create test binary names
 TEST_NAMES := $(patsubst $(TEST_DIR)/test_%.c,%,$(TEST_SRC))
-TEST_BINS := $(patsubst %,test_%,$(TEST_NAMES))
+TEST_BINS := $(patsubst %,test/test_%,$(TEST_NAMES))
 
 # Pattern rule for building test binaries
 # This automatically links each test_X.c file with the corresponding X.c source file
-test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
+test/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
 	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
 
 # Main test target that builds and runs all tests
@@ -118,7 +112,7 @@ test: $(TEST_BINS)
 
 # Clean all build artifacts and test binaries
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW
+	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW $(TEST_BINS)
 
 .PHONY: all clean test $(TEST_BINS)
 
