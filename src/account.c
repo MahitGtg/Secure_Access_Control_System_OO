@@ -1,4 +1,7 @@
 #include "account.h"
+#include "logging.h"
+#include <string.h>
+#include <ctype.h>
 
 /**
  * Create a new account with the specified parameters.
@@ -91,6 +94,13 @@ void account_set_email(account_t *acc, const char *new_email) {
   if (email_len >= EMAIL_LENGTH) {
       log_message(LOG_ERROR, "Email too long (max %d chars)", EMAIL_LENGTH - 1);
       return;
+  }
+  // checking if email is valid
+  for (size_t i = 0; i < email_len; i++) {
+      if (!isprint(new_email[i]) || isspace(new_email[i])) {
+          log_message(LOG_ERROR, "Invalid character in emailat position %zu", i);
+          return;
+      }
   }
   // copying email to account struct
   strncpy(acc->email, new_email, EMAIL_LENGTH - 1);
