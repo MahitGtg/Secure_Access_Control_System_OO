@@ -80,9 +80,24 @@ void account_set_expiration_time(account_t *acc, time_t t) {
 }
 
 void account_set_email(account_t *acc, const char *new_email) {
-  // remove the contents of this function and replace it with your own code.
-  (void) acc;
-  (void) new_email;
+  // checking for NULL pointers
+  if (acc == NULL || new_email == NULL) {
+      log_message(LOG_ERROR, "Null pointer passed to account_set_email");
+      return;
+  }
+  // using strnlen for length check --> safe practice
+  size_t email_len = strnlen(new_email, EMAIL_LENGTH);
+  // checking if email is too long
+  if (email_len >= EMAIL_LENGTH) {
+      log_message(LOG_ERROR, "Email too long (max %d chars)", EMAIL_LENGTH - 1);
+      return;
+  }
+  // copying email to account struct
+  strncpy(acc->email, new_email, EMAIL_LENGTH - 1);
+  // ensuring null termination
+  acc->email[EMAIL_LENGTH - 1] = '\0';
+  // logging the update
+  log_message(LOG_INFO, "Email updated for user %s", acc->userid);
 }
 
 bool account_print_summary(const account_t *acct, int fd) {
