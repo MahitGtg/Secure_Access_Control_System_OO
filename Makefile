@@ -1,5 +1,5 @@
 # DO NOT SUBMIT THIS FILE
-#
+#it 
 # When submitting your project, this file will be overwritten
 # by the automated build and test system.
 
@@ -12,6 +12,7 @@ CC = gcc
 SRC_DIR := src
 BUILD_DIR := build
 BIN_DIR := bin
+TEST_DIR := test
 
 # The target executable.
 # This executable is created by linking together all object files
@@ -42,13 +43,16 @@ PKG_CFLAGS := $(if $(strip $(PKG_DEPS)),$(shell pkg-config --cflags $(PKG_DEPS))
 # use pkg-config to get the linker flags for the dependencies
 PKG_LDFLAGS := $(if $(strip $(PKG_DEPS)),$(shell pkg-config --libs $(PKG_DEPS)))
 
-# You may wish to add additional compiler flags or linker flags here
-# (e.g. to change the optimization level, enable sanitizers, etc.)
-# This is helpful when testing your code locally, even though we will
-# not necessarily use the same flags when testing your code.
+# Additional flags for security analysis
 DEBUG = -g -fno-omit-frame-pointer
-CFLAGS = $(DEBUG) -std=c11 -pedantic-errors -Wall -Wextra $(INC_FLAGS) $(PKG_CFLAGS)
+EXTRA_CFLAGS = -Werror=vla -Werror=implicit-function-declaration -fstack-protector-strong
+SANITIZER_FLAGS = -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all
+CFLAGS = $(DEBUG) -std=c11 -pedantic-errors -Wall -Wextra -Wshadow -Wconversion -O $(EXTRA_CFLAGS) $(INC_FLAGS) $(PKG_CFLAGS)
 LDFLAGS = $(PKG_LDFLAGS)
+
+# Test flags
+TEST_CFLAGS = $(CFLAGS) $(SANITIZER_FLAGS)
+TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread
 
 ###
 # Targets
@@ -75,15 +79,32 @@ install-dependencies:
 	cat apt-packages.txt | sudo ./scripts/install-deps.sh
 
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET) $(TEST_DIR)/*.o test_account
 
-.PHONY: all clean
+.PHONY: all clean test
 
 .DELETE_ON_ERROR:
 
 # Include automatically generated dependency files (.d)
 -include $(OBJ_FILES:.o=.d)
 
-test/test_account: test/test_account.c src/account.c src/stubs.c
-	$(CC) -o $@ $^ -Isrc $(shell pkg-config --cflags --libs libsodium)
+# Testing targets
+test_account: test/test_account.c src/account.c src/stubs.c
+	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
 
+# Main test target
+test: test_account
+	./test_account
+
+
+# Documentation with Doxygen
+docs:
+	doxygen
+
+# Run with sanitizers
+sanitize: CFLAGS += $(SANITIZER_FLAGS)
+sanitize: all
+
+# Analyze using Valgrind
+memcheck: $(TARGET)
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose $(TARGET)

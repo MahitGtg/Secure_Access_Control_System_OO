@@ -3,3 +3,5 @@
 # the Ubuntu package will typically contain a `.pc` (package config) file
 # which will tell you the pkg-config name.
 libsodium
+check
+
