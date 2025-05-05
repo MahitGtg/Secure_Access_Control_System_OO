@@ -6,6 +6,9 @@
 // Forward declaration of panic function
 void panic(const char *msg);
 
+// Forward declaration of panic function - CAN WE DO THAT?  otherwise check doesnt work in test
+void panic(const char *msg);
+
 static pthread_mutex_t account_mutex = PTHREAD_MUTEX_INITIALIZER;
 // The status check functions don't modify state, so they don't need mutex protection. 
 // However, they should read consistent state.
@@ -120,7 +123,7 @@ bool account_is_banned(const account_t *acc) {
   pthread_mutex_unlock(&account_mutex);
 
   // special case: 0 means not banned
-  if (acc->unban_time == 0) {
+  if (unban_time == 0) {
       return false;
   }  
 
