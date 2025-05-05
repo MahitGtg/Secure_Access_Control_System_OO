@@ -3,6 +3,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <pthread.h>
+// Forward declaration of panic function
+void panic(const char *msg);
 
 static pthread_mutex_t account_mutex = PTHREAD_MUTEX_INITIALIZER;
 // The status check functions don't modify state, so they don't need mutex protection. 
