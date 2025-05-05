@@ -52,14 +52,54 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
 }
 
 void account_record_login_success(account_t *acc, ip4_addr_t ip) {
-  // remove the contents of this function and replace it with your own code.
-  (void) acc;
-  (void) ip;
+  if (acc == NULL) {
+      log_message(LOG_ERROR, "Null pointer passed to account_record_login_success");
+      panic("Null pointer in account_record_login_success");
+      return;
+  }
+  
+  // getting current time
+  time_t current_time = time(NULL);
+  if (current_time == (time_t)-1) {
+      log_message(LOG_ERROR, "Failed to get current time in account_record_login_success");
+      return;
+  }
+  
+  // thread safe - acquire lock
+  pthread_mutex_lock(&account_mutex);
+  
+  // updating account fields
+  acc->login_count++;
+  acc->login_fail_count = 0; // reset consecutive failure count on success
+  acc->last_login_time = current_time;
+  acc->last_ip = ip;
+  
+  // thread safe - release lock
+  pthread_mutex_unlock(&account_mutex);
+  
+  log_message(LOG_INFO, "Recorded successful login for user %s", acc->userid);
 }
 
+
 void account_record_login_failure(account_t *acc) {
-  // remove the contents of this function and replace it with your own code.
-  (void) acc;
+  if (acc == NULL) {
+      log_message(LOG_ERROR, "Null pointer passed to account_record_login_failure");
+      panic("Null pointer in account_record_login_failure");
+      return;
+  }
+  
+  // thread safe - acquire lock
+  pthread_mutex_lock(&account_mutex);
+  
+  // updating account fields
+  acc->login_count = 0; // reset success count on failure
+  acc->login_fail_count++;
+  
+  // thread safe - release lock
+  pthread_mutex_unlock(&account_mutex);
+  
+  log_message(LOG_INFO, "Recorded login failure for user %s (consecutive failures: %u)", 
+              acc->userid, acc->login_fail_count);
 }
 
 bool account_is_banned(const account_t *acc) {
