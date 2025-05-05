@@ -84,3 +84,6 @@ clean:
 # Include automatically generated dependency files (.d)
 -include $(OBJ_FILES:.o=.d)
 
+test/test_account: test/test_account.c src/account.c src/stubs.c
+	$(CC) -o $@ $^ -Isrc $(shell pkg-config --cflags --libs libsodium)
+
