@@ -1,0 +1,50 @@
+name: CITS3007 Project CI
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsodium-dev check valgrind
+        
+    - name: Verify libraries.txt
+      run: |
+        grep -q "libsodium" libraries.txt || echo "libsodium" >> libraries.txt
+        grep -q "check" libraries.txt || echo "check" >> libraries.txt
+        
+    - name: Build project
+      run: make all
+      
+    - name: Run tests with sanitizers
+      run: |
+        make test
+        
+    - name: Run Valgrind memory check
+      run: |
+        valgrind --leak-check=full --error-exitcode=1 ./test_account
+      
+  static-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install analysis tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cppcheck clang-tools
+        
+    - name: Run Cppcheck
+      run: |
+        cppcheck --enable=all --suppress=missingIncludeSystem --error-exitcode=1 src/
