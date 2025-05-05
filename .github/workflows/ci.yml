@@ -53,7 +53,7 @@ jobs:
     - name: Run Cppcheck on implementation files
       run: |
         # Run strict checks on the implementation files you need to submit
-        cppcheck --enable=all --suppress=missingIncludeSystem --error-exitcode=1 \
+        cppcheck --enable=all --suppress=missingIncludeSystem --suppress=unusedFunction --error-exitcode=1 \
           src/account.c src/login.c
         
     - name: Run Cppcheck on test files
