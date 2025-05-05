@@ -2,3 +2,4 @@
 # The pkg-config name is typically not the same as the Ubuntu package name;
 # the Ubuntu package will typically contain a `.pc` (package config) file
 # which will tell you the pkg-config name.
+libsodium
