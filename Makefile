@@ -1,5 +1,5 @@
 # DO NOT SUBMIT THIS FILE
-#it 
+#
 # When submitting your project, this file will be overwritten
 # by the automated build and test system.
 
@@ -52,7 +52,7 @@ LDFLAGS = $(PKG_LDFLAGS)
 
 # Test flags
 TEST_CFLAGS = $(CFLAGS) $(SANITIZER_FLAGS)
-TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread
+TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
 
 ###
 # Targets
@@ -78,24 +78,40 @@ $(foreach obj_file,$(OBJ_FILES),$(eval $(obj_file):))
 install-dependencies:
 	cat apt-packages.txt | sudo ./scripts/install-deps.sh
 
-clean:
-	rm -rf $(BUILD_DIR) $(TARGET) $(TEST_DIR)/*.o test_account
+# Find all test source files
+TEST_SRC := $(wildcard $(TEST_DIR)/test_*.c)
 
-.PHONY: all clean test
+# Extract test names and create test binary names
+TEST_NAMES := $(patsubst $(TEST_DIR)/test_%.c,%,$(TEST_SRC))
+TEST_BINS := $(patsubst %,test_%,$(TEST_NAMES))
+
+# Pattern rule for building test binaries
+# This automatically links each test_X.c file with the corresponding X.c source file
+test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
+	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
+
+# Main test target that builds and runs all tests
+test: $(TEST_BINS)
+	@for test in $(TEST_BINS); do \
+		echo "\nRunning $$test..."; \
+		./$$test; \
+		if [ $$? -ne 0 ]; then \
+			echo "$$test failed!"; \
+			exit 1; \
+		fi; \
+	done
+	@echo "\nAll tests passed!"
+
+# Clean all build artifacts and test binaries
+clean:
+	rm -rf $(BUILD_DIR) $(TARGET) $(TEST_BINS)
+
+.PHONY: all clean test $(TEST_BINS)
 
 .DELETE_ON_ERROR:
 
 # Include automatically generated dependency files (.d)
 -include $(OBJ_FILES:.o=.d)
-
-# Testing targets
-test_account: test/test_account.c src/account.c src/stubs.c
-	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
-
-# Main test target
-test: test_account
-	./test_account
-
 
 # Documentation with Doxygen
 docs:
@@ -105,6 +121,9 @@ docs:
 sanitize: CFLAGS += $(SANITIZER_FLAGS)
 sanitize: all
 
-# Analyze using Valgrind
-memcheck: $(TARGET)
-	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose $(TARGET)
+# Memory check with valgrind for all test binaries
+memcheck: $(TEST_BINS)
+	@for test in $(TEST_BINS); do \
+		echo "\nRunning valgrind on $$test..."; \
+		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./$$test; \
+	done
