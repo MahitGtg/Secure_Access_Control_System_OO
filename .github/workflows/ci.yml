@@ -60,6 +60,6 @@ jobs:
       run: |
         # Check test files but with fewer restrictions
         cppcheck --enable=all --suppress=missingIncludeSystem \
-          --suppress=unusedFunction --error-exitcode=1 \
+           --error-exitcode=1 \
           test/
   
