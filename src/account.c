@@ -75,6 +75,11 @@ void account_set_unban_time(account_t *acc, time_t t) {
       log_message(LOG_ERROR, "Null pointer passed to account_set_unban_time");
       return;
   }
+  // checking if unban time is in the past
+  time_t current_time = time(NULL);
+  if (current_time != (time_t)-1 && t != 0 && t < current_time) {
+      log_message(LOG_WARN, "Setting unban time to a value in the past: %ld", (long)t);
+  }
   // setting the unban time
   acc->unban_time = t;
   log_message(LOG_INFO, "Unban time set for user %s", acc->userid);
@@ -84,6 +89,11 @@ void account_set_expiration_time(account_t *acc, time_t t) {
   if (acc == NULL) {
       log_message(LOG_ERROR, "Null pointer passed to account_set_expiration_time");
       return;
+  }
+  // checking if expiration time is in the past    
+  time_t current_time = time(NULL);
+  if (current_time != (time_t)-1 && t != 0 && t < current_time) {
+      log_message(LOG_WARN, "Setting expiration time to a value in the past: %ld", (long)t);
   }
   // setting the expiration time
   acc->expiration_time = t;
