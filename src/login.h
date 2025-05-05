@@ -55,7 +55,7 @@ typedef enum {
  */
 login_result_t handle_login(const char *userid, const char *password,
                             ip4_addr_t client_ip, time_t login_time,
-                            int client_output_fd, int log_fd,
+                            int client_output_fd,
                             login_session_data_t *session);
 
 

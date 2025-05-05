@@ -24,16 +24,20 @@ TEST_DIR := test
 # See e.g. `alternate_main.c`
 TARGET = $(BIN_DIR)/app
 
-SRC_FILES := $(shell find $(SRC_DIR) -name "*.c")
+TS_FILES := $(shell find $(SRC_DIR) -name "*.ts")
+
+SRC_FILES := $(shell find $(SRC_DIR) -name "*.c") $(TS_FILES:.ts=.c)
 
 OBJ_FILES := $(SRC_FILES:.c=.o)
-OBJ_FILES := $(subst $(SRC_DIR),$(BUILD_DIR),$(OBJ_FILES))
+# we need to uniq-ify object files to stop .ts and .c versions of tests showing up twice
+OBJ_FILES := $(shell echo $(subst $(SRC_DIR),$(BUILD_DIR),$(OBJ_FILES)) | tr ' ' '\n' | sort | uniq)
+
 
 SRC_DIRS := $(shell find $(SRC_DIR) -type d)
 INC_FLAGS := $(addprefix -I, $(SRC_DIRS))
 
 # get compiler flags for installed libraries using pkg-config.
-PKG_DEPS := $(shell cat libraries.txt | grep -v '^#' | xargs)
+PKG_DEPS := $(shell cat libraries.txt | grep -v "^\#" | xargs)
 
 # Set PKG_CFLAGS to empty if no dependencies are found, otherwise
 # use pkg-config to get the compiler flags for the dependencies
@@ -54,6 +58,15 @@ LDFLAGS = $(PKG_LDFLAGS)
 TEST_CFLAGS = $(CFLAGS) $(SANITIZER_FLAGS)
 TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
 
+# Test flags
+TEST_CFLAGS = $(CFLAGS) $(SANITIZER_FLAGS)
+TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
+
+# how to make a .c file from a .ts file
+%.c: %.ts
+	checkmk $< > $@
+
+
 ###
 # Targets
 
@@ -69,6 +82,7 @@ $(TARGET): $(OBJ_FILES)
 # c
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
+	./add_banned_header.pl $<
 	$(CC) $(CFLAGS) $(INC_FLAGS) -MMD -MP -c $< -o $@
 
 # targets for each object file
@@ -104,7 +118,7 @@ test: $(TEST_BINS)
 
 # Clean all build artifacts and test binaries
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET) $(TEST_BINS)
+	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW
 
 .PHONY: all clean test $(TEST_BINS)
 
