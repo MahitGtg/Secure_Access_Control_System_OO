@@ -76,7 +76,7 @@ $(TARGET): $(OBJ_FILES)
 # c
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
-	./add_banned_header.pl $
+	./add_banned_header.pl $<
 	$(CC) $(CFLAGS) $(INC_FLAGS) -MMD -MP -c $< -o $@
 
 # targets for each object file
