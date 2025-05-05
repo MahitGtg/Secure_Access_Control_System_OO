@@ -59,15 +59,41 @@ void account_record_login_failure(account_t *acc) {
 }
 
 bool account_is_banned(const account_t *acc) {
-  // remove the contents of this function and replace it with your own code.
-  (void) acc;
-  return false;
+  if (acc == NULL) {
+      log_message(LOG_ERROR, "Null pointer passed to account_is_banned");
+      return true; // Fail secure
+  }
+  // getting current time
+  time_t current_time = time(NULL);
+  if (current_time == (time_t)-1) {
+      log_message(LOG_ERROR, "Failed to get current time in account_is_banned");
+      return true; // Fail secure
+  }
+  // special case: 0 means not banned
+  if (acc->unban_time == 0) {
+      return false;
+  }  
+  // checking if ban time is in the future
+  return (acc->unban_time > current_time);
 }
 
 bool account_is_expired(const account_t *acc) {
-  // remove the contents of this function and replace it with your own code.
-  (void) acc;
-  return false;
+if (acc == NULL) {
+    log_message(LOG_ERROR, "Null pointer passed to account_is_expired");
+    return true; // Fail secure - assume expired if we can't verify
+}
+// getting current time
+time_t current_time = time(NULL);
+if (current_time == (time_t)-1) {
+    log_message(LOG_ERROR, "Failed to get current time in account_is_expired");
+    return true; // Fail secure
+}
+// special case: 0 means no expiration
+if (acc->expiration_time == 0) {
+    return false;
+}
+// checking if expiration time is in the past
+return (acc->expiration_time <= current_time);
 }
 
 void account_set_unban_time(account_t *acc, time_t t) {
