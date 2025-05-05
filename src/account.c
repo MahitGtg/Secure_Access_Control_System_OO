@@ -61,6 +61,7 @@ void account_record_login_failure(account_t *acc) {
 bool account_is_banned(const account_t *acc) {
   if (acc == NULL) {
       log_message(LOG_ERROR, "Null pointer passed to account_is_banned");
+      panic("Null pointer in account_is_banned"); // critical error - abort
       return true; // Fail secure
   }
   // getting current time
@@ -80,6 +81,7 @@ bool account_is_banned(const account_t *acc) {
 bool account_is_expired(const account_t *acc) {
 if (acc == NULL) {
     log_message(LOG_ERROR, "Null pointer passed to account_is_expired");
+    panic("Null pointer in account_is_expired"); // critical error - abort
     return true; // Fail secure - assume expired if we can't verify
 }
 // getting current time
@@ -99,6 +101,7 @@ return (acc->expiration_time <= current_time);
 void account_set_unban_time(account_t *acc, time_t t) {
   if (acc == NULL) {
       log_message(LOG_ERROR, "Null pointer passed to account_set_unban_time");
+      panic("Null pointer in account_set_unban_time"); // critical error - abort
       return;
   }
   // checking if unban time is in the past
@@ -114,6 +117,7 @@ void account_set_unban_time(account_t *acc, time_t t) {
 void account_set_expiration_time(account_t *acc, time_t t) {
   if (acc == NULL) {
       log_message(LOG_ERROR, "Null pointer passed to account_set_expiration_time");
+      panic("Null pointer in account_set_expiration_time"); // critical error - abort
       return;
   }
   // checking if expiration time is in the past    
@@ -130,6 +134,7 @@ void account_set_email(account_t *acc, const char *new_email) {
   // checking for NULL pointers
   if (acc == NULL || new_email == NULL) {
       log_message(LOG_ERROR, "Null pointer passed to account_set_email");
+      panic("Null pointer in account_set_email"); // critical error - abort
       return;
   }
   // using strnlen for length check --> safe practice
