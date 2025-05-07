@@ -29,13 +29,18 @@ jobs:
     - name: Run tests with sanitizers
       run: |
         make test
+        # Verify tests were built successfully
+        find test -name "test_*" -type f -executable | grep -q "test_" || exit 1
         
     - name: Run Valgrind memory check
       run: |
-        for test in test_*; do
+        # Build Valgrind-specific binaries first
+        make memcheck
+        # Enhanced memory checking
+        for test in test/test_*_valgrind; do
           if [ -x "$test" ]; then
             echo "Running Valgrind on $test"
-            valgrind --leak-check=full --error-exitcode=1 ./$test
+            valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 --track-fds=yes --trace-children=yes ./$test
           fi
         done
 
@@ -62,4 +67,3 @@ jobs:
         cppcheck --enable=all --suppress=missingIncludeSystem \
            --error-exitcode=1 \
           test/
-  
