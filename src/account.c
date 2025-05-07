@@ -11,6 +11,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <pthread.h>
+#define _GNU_SOURCE
+
 // Forward declaration of panic function
 void panic(const char *msg);
 
