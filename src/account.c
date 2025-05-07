@@ -565,7 +565,7 @@ bool account_print_summary(const account_t *acct, int fd) {
     if (acct->last_login_time == 0) {
         strcpy(time_buffer, "Never");
     } else {
-        struct tm *tm_ptr = localtime(&acct->last_login_time);
+        const struct tm *tm_ptr = localtime(&acct->last_login_time);
         if (tm_ptr != NULL) {
             strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", tm_ptr);
         } else {
