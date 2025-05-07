@@ -7,7 +7,12 @@
 #include <time.h>
 #include <ctype.h> /* For isdigit() */
 #include "banned.h"
+#include <unistd.h>    // for dprintf
+#include <limits.h>    // for UINT_MAX
+#include <pthread.h>
 
+
+static pthread_mutex_t acc_lock = PTHREAD_MUTEX_INITIALIZER;
 /**
  * Create a new account with the specified parameters.
  *
@@ -263,15 +268,40 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
 }
 void account_record_login_success(account_t *acc, ip4_addr_t ip)
 {
-  // remove the contents of this function and replace it with your own code.
-  (void)acc;
-  (void)ip;
+  if (acc == NULL) {
+    log_message(LOG_ERROR, "account_record_login_success: NULL account pointer");
+    return;
+  }
+
+  pthread_mutex_lock(&acc_lock);
+
+  acc->login_count++;
+  acc->login_fail_count = 0;
+
+  time_t now = time(NULL);
+  if (now != ((time_t)-1)) {
+      acc->last_login_time = now;
+      acc->last_ip = ip;
+  } else {
+      log_message(LOG_ERROR, "account_record_login_success: Failed to get current time");
+  }
+
+  pthread_mutex_unlock(&acc_lock);
 }
 
 void account_record_login_failure(account_t *acc)
 {
-  // remove the contents of this function and replace it with your own code.
-  (void)acc;
+  if (acc == NULL) {
+    log_message(LOG_ERROR, "account_record_login_failure: NULL account pointer");
+    return;
+  }
+
+  pthread_mutex_lock(&acc_lock);
+
+  acc->login_fail_count++;
+  acc->login_count = 0;
+
+  pthread_mutex_unlock(&acc_lock);
 }
 
 bool account_is_banned(const account_t *acc)
@@ -311,8 +341,49 @@ void account_set_email(account_t *acc, const char *new_email)
 
 bool account_print_summary(const account_t *acct, int fd)
 {
-  // remove the contents of this function and replace it with your own code.
-  (void)acct;
-  (void)fd;
-  return false;
+  if (!acct || fd < 0) {
+    log_message(LOG_ERROR, "account_print_summary: Invalid arguments");
+    return false;
+  }
+
+  // Format last login time
+  char time_buf[64] = "N/A";
+  if (acct->last_login_time > 0) {
+    struct tm *lt = localtime(&acct->last_login_time);
+    if (lt) {
+        if (strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", lt) == 0) {
+            strncpy(time_buf, "invalid time", sizeof(time_buf));
+            time_buf[sizeof(time_buf) - 1] = '\0';
+        }
+    }
+  }
+
+  // Format IP address (stored as uint32_t)
+  uint8_t ip1 = (acct->last_ip >> 24) & 0xFF;
+  uint8_t ip2 = (acct->last_ip >> 16) & 0xFF;
+  uint8_t ip3 = (acct->last_ip >> 8) & 0xFF;
+  uint8_t ip4 = acct->last_ip & 0xFF;
+
+  int result = dprintf(fd,
+      "Account Summary:\n"
+      "User ID: %s\n"
+      "Email: %s\n"
+      "Login Count: %u\n"
+      "Login Failures: %u\n"
+      "Last Login Time: %s\n"
+      "Last IP: %u.%u.%u.%u\n",
+      acct->userid,
+      acct->email,
+      acct->login_count,
+      acct->login_fail_count,
+      time_buf,
+      ip1, ip2, ip3, ip4
+  );
+
+  if (result < 0) {
+    log_message(LOG_ERROR, "account_print_summary: Failed to write to fd");
+    return false;
+  }
+
+  return true;
 }
