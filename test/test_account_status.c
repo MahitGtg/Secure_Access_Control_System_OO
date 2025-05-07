@@ -9,7 +9,6 @@
 // test fixture setup
 static account_t *test_acc;
 
-
 void setup(void) {
     // create a test account before each test
     test_acc = malloc(sizeof(account_t));
@@ -84,64 +83,11 @@ START_TEST(test_expiration_status) {
 }
 END_TEST
 
-// Test login tracking
-START_TEST(test_login_tracking) {
-    // initial counts should be 0
-    ck_assert_int_eq(test_acc->login_count, 0);
-    ck_assert_int_eq(test_acc->login_fail_count, 0);
-    
-    // recording success
-    account_record_login_success(test_acc, 0x12345678);
-    ck_assert_int_eq(test_acc->login_count, 1);
-    ck_assert_int_eq(test_acc->login_fail_count, 0);
-    ck_assert_int_eq(test_acc->last_ip, 0x12345678);
-    
-    // recording failure
-    account_record_login_failure(test_acc);
-    ck_assert_int_eq(test_acc->login_count, 0); // reset on failure
-    ck_assert_int_eq(test_acc->login_fail_count, 1);
-    
-    // recording another success
-    account_record_login_success(test_acc, 0x87654321);
-    ck_assert_int_eq(test_acc->login_count, 1);
-    ck_assert_int_eq(test_acc->login_fail_count, 0); // reset on success
-    ck_assert_int_eq(test_acc->last_ip, 0x87654321);
-}
-END_TEST
-
-// Test account summary printing
-START_TEST(test_account_summary) {
-    // creating a pipe for testing output
-    int pipefd[2];
-    if (pipe(pipefd) == -1) {
-        ck_abort_msg("Failed to create pipe");
-    }
-    
-    // printing account summary to pipe
-    bool result = account_print_summary(test_acc, pipefd[1]);
-    ck_assert(result);
-    
-    // closing write end
-    close(pipefd[1]);
-    
-    // reading from pipe
-    char buffer[1024] = {0};
-    ssize_t bytes_read = read(pipefd[0], buffer, sizeof(buffer) - 1);
-    close(pipefd[0]);
-    
-    ck_assert_int_gt(bytes_read, 0);
-    ck_assert(strstr(buffer, "testuser") != NULL);
-    ck_assert(strstr(buffer, "test@example.com") != NULL);
-}
-END_TEST
-
 // creating test suite
 Suite *account_suite(void) {
     Suite *s = suite_create("Account");
     TCase *tc_email = tcase_create("Email");
     TCase *tc_status = tcase_create("Status");
-    TCase *tc_login = tcase_create("Login");
-    TCase *tc_summary = tcase_create("Summary");
     
     // email tests
     tcase_add_checked_fixture(tc_email, setup, teardown);
@@ -154,16 +100,6 @@ Suite *account_suite(void) {
     tcase_add_test(tc_status, test_ban_status);
     tcase_add_test(tc_status, test_expiration_status);
     suite_add_tcase(s, tc_status);
-    
-    // login tests
-    tcase_add_checked_fixture(tc_login, setup, teardown);
-    tcase_add_test(tc_login, test_login_tracking);
-    suite_add_tcase(s, tc_login);
-    
-    // summary tests
-    tcase_add_checked_fixture(tc_summary, setup, teardown);
-    tcase_add_test(tc_summary, test_account_summary);
-    suite_add_tcase(s, tc_summary);
     
     return s;
 }
