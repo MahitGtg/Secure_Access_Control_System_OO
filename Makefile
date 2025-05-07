@@ -135,6 +135,8 @@ sanitize: CFLAGS += $(SANITIZER_FLAGS)
 sanitize: all
 
 # Memory check with valgrind for all test binaries
+memcheck: TEST_CFLAGS := $(CFLAGS)
+memcheck: TEST_LDFLAGS := $(LDFLAGS) -lsodium -lcheck -lsubunit -pthread -lrt -lm
 memcheck: $(TEST_BINS)
 	@for test in $(TEST_BINS); do \
 		echo "\nRunning valgrind on $$test..."; \
