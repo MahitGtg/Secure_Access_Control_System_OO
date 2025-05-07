@@ -11,7 +11,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <pthread.h>
-#define _GNU_SOURCE
 
 // Forward declaration of panic function
 void panic(const char *msg);
@@ -368,25 +367,26 @@ if (acc == NULL) {
 pthread_mutex_lock(&account_mutex);
 
 // getting expiration time
-time_t expiration_time = acc->expiration_time;
+time_t current_time = time(NULL);
+if (current_time == (time_t)-1) {
+    log_message(LOG_ERROR, "Failed to get current time in account_is_expired");
+    pthread_mutex_unlock(&account_mutex);
+    return true; // Fail secure
+}
+
+// special case: 0 means no expiration
+if (acc->expiration_time == 0) {
+    pthread_mutex_unlock(&account_mutex);
+    return false;
+}
+
+// checking if expiration time is in the past
+bool is_expired = (acc->expiration_time <= current_time);
 
 // thread safe - release lock
 pthread_mutex_unlock(&account_mutex);
 
-// special case: 0 means no expiration
-if (acc->expiration_time == 0) {
-    return false;
-}
-
-// getting current time
-time_t current_time = time(NULL);
-if (current_time == (time_t)-1) {
-    log_message(LOG_ERROR, "Failed to get current time in account_is_expired");
-    return true; // Fail secure
-}
-
-// checking if expiration time is in the past
-return (acc->expiration_time <= current_time);
+return is_expired;
 }
 
 void account_set_unban_time(account_t *acc, time_t t) {
