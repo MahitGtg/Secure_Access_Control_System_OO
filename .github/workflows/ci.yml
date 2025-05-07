@@ -26,15 +26,22 @@ jobs:
     - name: Build and run tests with ASan
       run: |
         make clean
-        make test
+        # Build with ASan flags
+        gcc -g -fsanitize=address -fno-omit-frame-pointer -std=c11 -pedantic-errors -Wall -Wextra -Wshadow -Wconversion -O0 -Werror=vla -Werror=implicit-function-declaration -fstack-protector-strong -Isrc -pthread -DTESTING -o test/test_account test/test_account.c src/account.c src/stubs.c -Isrc -lsodium -lcheck_pic -pthread -lrt -lm -lsubunit -lcheck -lsubunit -pthread -lrt -lm
+        # Verify binary exists
+        test -f test/test_account || exit 1
+        # Run tests with ASan
+        ./test/test_account
         
     - name: Build and run tests with Valgrind
       run: |
         make clean
         # Build without sanitizers for Valgrind
-        gcc -g -fno-omit-frame-pointer -std=c11 -pedantic-errors -Wall -Wextra -Wshadow -Wconversion -O -Werror=vla -Werror=implicit-function-declaration -fstack-protector-strong -Isrc -pthread -DTESTING -o test/test_account test/test_account.c src/account.c src/stubs.c -Isrc -lsodium -lcheck_pic -pthread -lrt -lm -lsubunit -lcheck -lsubunit -pthread -lrt -lm
-        # Run Valgrind
-        valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./test/test_account
+        gcc -g -O0 -fno-omit-frame-pointer -std=c11 -pedantic-errors -Wall -Wextra -Wshadow -Wconversion -Werror=vla -Werror=implicit-function-declaration -fstack-protector-strong -Isrc -pthread -DTESTING -o test/test_account test/test_account.c src/account.c src/stubs.c -Isrc -lsodium -lcheck_pic -pthread -lrt -lm -lsubunit -lcheck -lsubunit -pthread -lrt -lm
+        # Verify binary exists
+        test -f test/test_account || exit 1
+        # Run Valgrind with strict checks
+        valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 --track-fds=yes --trace-children=yes ./test/test_account
 
   static-analysis:
     runs-on: ubuntu-latest
