@@ -129,9 +129,11 @@ docs:
 sanitize: CFLAGS += $(SANITIZER_FLAGS)
 sanitize: all
 
-# Memory check with valgrind for all test binaries
-memcheck: $(TEST_BINS)
-	@for test in $(TEST_BINS); do \
-		echo "\nRunning valgrind on $$test..."; \
-		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./$$test; \
-	done
+# Build test binary for valgrind (without sanitizers)
+test/test_account_valgrind: $(TEST_DIR)/test_account.c $(SRC_DIR)/account.c src/stubs.c
+	@mkdir -p $(TEST_DIR)
+	$(CC) $(CFLAGS) -DTESTING -o $@ $^ -Isrc $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
+
+# Memory check with valgrind
+memcheck: test/test_account_valgrind
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./test/test_account_valgrind

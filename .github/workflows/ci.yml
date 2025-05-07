@@ -23,32 +23,18 @@ jobs:
         grep -q "libsodium" libraries.txt || echo "libsodium" >> libraries.txt
         grep -q "check" libraries.txt || echo "check" >> libraries.txt
         
-    - name: Debug directory structure
+    - name: Build and run tests with ASan
       run: |
-        echo "Current directory: $(pwd)"
-        echo "Directory contents:"
-        ls -la
-        echo "Test directory contents:"
-        ls -la test/
+        make clean
+        make test
         
-    - name: Build project
+    - name: Build and run tests with Valgrind
       run: |
-        make all
-        echo "After make all:"
-        ls -la test/
-        
-    - name: Run tests with sanitizers
-      run: |
-        make test VERBOSE=1
-        
-    - name: Run Valgrind memory check
-      run: |
-        for test in test/test_*; do
-          if [ -x "$test" ]; then
-            echo "Running Valgrind on $test"
-            valgrind --leak-check=full --error-exitcode=1 ./$test
-          fi
-        done
+        make clean
+        # Build without sanitizers for Valgrind
+        gcc -g -fno-omit-frame-pointer -std=c11 -pedantic-errors -Wall -Wextra -Wshadow -Wconversion -O -Werror=vla -Werror=implicit-function-declaration -fstack-protector-strong -Isrc -pthread -DTESTING -o test/test_account test/test_account.c src/account.c src/stubs.c -Isrc -lsodium -lcheck_pic -pthread -lrt -lm -lsubunit -lcheck -lsubunit -pthread -lrt -lm
+        # Run Valgrind
+        valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./test/test_account
 
   static-analysis:
     runs-on: ubuntu-latest
