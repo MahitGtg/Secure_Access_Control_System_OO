@@ -301,24 +301,6 @@ void account_record_login_success(account_t *acc, ip4_addr_t ip) {
   pthread_mutex_unlock(&account_mutex);
   
   log_message(LOG_INFO, "Recorded successful login for user %s", acc->userid);
-  /* Securely wipe the old password hash following POLP */
-  sodium_memzero(acc->password_hash, HASH_LENGTH);
-
-  /* Copy the new hash to the account with length check to prevent buffer overflow */
-  strncpy(acc->password_hash, hashed_password, HASH_LENGTH - 1);
-  acc->password_hash[HASH_LENGTH - 1] = '\0'; /* Ensure null-termination */
-
-  /* Securely wipe the temporary hash buffer to prevent memory scraping */
-  sodium_memzero(hashed_password, HASH_LENGTH);
-
-  log_message(LOG_INFO, "account_update_password: password updated successfully");
-  return true;
-}
-void account_record_login_success(account_t *acc, ip4_addr_t ip)
-{
-  // remove the contents of this function and replace it with your own code.
-  (void)acc;
-  (void)ip;
 }
 
 void account_record_login_failure(account_t *acc) {
