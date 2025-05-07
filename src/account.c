@@ -37,20 +37,71 @@ static pthread_mutex_t account_mutex = PTHREAD_MUTEX_INITIALIZER;
 account_t *account_create(const char *userid, const char *plaintext_password,
                           const char *email, const char *birthdate)
 {
-  // remove the contents of this function and replace it with your own code.
-  (void)userid;
-  (void)plaintext_password;
-  (void)email;
-  (void)birthdate;
+    /* Parameter validation */
+    if (!userid || !plaintext_password || !email || !birthdate) {
+        log_message(LOG_ERROR, "account_create: NULL parameter");
+        return NULL;
+    }
 
-  return NULL;
+    /* Check string lengths */
+    if (strlen(userid) >= USER_ID_LENGTH ||
+        strlen(email) >= EMAIL_LENGTH ||
+        strlen(birthdate) >= BIRTHDATE_LENGTH) {
+        log_message(LOG_ERROR, "account_create: String too long");
+        return NULL;
+    }
+
+    /* Allocate new account */
+    account_t *new_acc = malloc(sizeof(account_t));
+    if (!new_acc) {
+        log_message(LOG_ERROR, "account_create: Memory allocation failed");
+        return NULL;
+    }
+
+    /* Initialize all fields to zero */
+    memset(new_acc, 0, sizeof(account_t));
+
+    /* Copy user data with bounds checking */
+    strncpy(new_acc->userid, userid, USER_ID_LENGTH - 1);
+    new_acc->userid[USER_ID_LENGTH - 1] = '\0';
+
+    strncpy(new_acc->email, email, EMAIL_LENGTH - 1);
+    new_acc->email[EMAIL_LENGTH - 1] = '\0';
+
+    strncpy(new_acc->birthdate, birthdate, BIRTHDATE_LENGTH - 1);
+    new_acc->birthdate[BIRTHDATE_LENGTH - 1] = '\0';
+
+    /* Set password hash */
+    if (!account_update_password(new_acc, plaintext_password)) {
+        free(new_acc);
+        return NULL;
+    }
+
+    /* Initialize other fields */
+    new_acc->login_count = 0;
+    new_acc->login_fail_count = 0;
+    new_acc->last_login_time = 0;
+    new_acc->last_ip = 0;
+    new_acc->unban_time = 0;
+    new_acc->expiration_time = 0;
+
+    log_message(LOG_INFO, "Created new account for user %s", userid);
+    return new_acc;
 }
 
 void account_free(account_t *acc)
 {
-  // remove the contents of this function and replace it with your own code.
-  (void)acc;
+    if (!acc) {
+        return;
+    }
+
+    /* Securely wipe sensitive data */
+    sodium_memzero(acc->password_hash, HASH_LENGTH);
+    
+    /* Free the account structure */
+    free(acc);
 }
+
 /**
  * Validates if a supplied plaintext password matches the stored hash.
  *
