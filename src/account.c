@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>  /* For fdopen */
+#include "banned.h"
 
 // Forward declaration of panic function
 void panic(const char *msg);
