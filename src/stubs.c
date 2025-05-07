@@ -28,7 +28,7 @@
  * 
  * This function should not return.
  */
-static void panic(const char *msg) {
+void panic(const char *msg) {
   fprintf(stderr, "PANIC: %s\n", msg);
   abort();
 }

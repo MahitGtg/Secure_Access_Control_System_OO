@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L  /* For nanosleep and dprintf */
 #include "account.h"
 #include <string.h>
 #include <sodium.h>
@@ -6,11 +7,12 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h> /* For isdigit() */
-#include "banned.h"
 #include "logging.h"
 #include <string.h>
 #include <ctype.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <fcntl.h>  /* For fdopen */
 
 // Forward declaration of panic function
 void panic(const char *msg);
@@ -450,10 +452,8 @@ void account_set_email(account_t *acc, const char *new_email) {
       return;
   }
 
-  // using strnlen for length check --> safe practice
-  size_t email_len = strnlen(new_email, EMAIL_LENGTH);
-
-  // checking if email is too long
+  // using strlen for length check since strnlen is not standard
+  size_t email_len = strlen(new_email);
   if (email_len >= EMAIL_LENGTH) {
       log_message(LOG_ERROR, "Email too long (max %d chars)", EMAIL_LENGTH - 1);
       return;
@@ -483,64 +483,66 @@ void account_set_email(account_t *acc, const char *new_email) {
 }
 
 bool account_print_summary(const account_t *acct, int fd) {
-  if (acct == NULL) {
-      log_message(LOG_ERROR, "Null pointer passed to account_print_summary");
-      panic("Null pointer in account_print_summary");
-      return false;
-  }
-  
-  // buffer for formatting time
-  char time_buffer[64];
-  struct tm tm_info;
-  
-  // format for printing
-  const char *summary_format = 
-      "Account Summary for: %s\n"
-      "Email: %s\n"
-      "Login Count: %u\n"
-      "Failed Login Attempts: %u\n"
-      "Last Login: %s\n"
-      "Last IP: %u.%u.%u.%u\n"
-      "Account Status: %s\n"
-      "Birth Date: %s\n";
-  
-  // getting account status
-  bool is_banned = account_is_banned(acct);
-  bool is_expired = account_is_expired(acct);
-  const char *status = is_banned ? "BANNED" : 
-                      (is_expired ? "EXPIRED" : "ACTIVE");
-  
-  // formatting last login time
-  if (acct->last_login_time == 0) {
-      strcpy(time_buffer, "Never");
-  } else if (localtime_r(&acct->last_login_time, &tm_info) != NULL) {
-      strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", &tm_info);
-  } else {
-      strcpy(time_buffer, "Invalid time");
-  }
-  
-  // extracting IP address bytes
-  unsigned char ip_bytes[4];
-  ip_bytes[0] = (acct->last_ip >> 24) & 0xFF;
-  ip_bytes[1] = (acct->last_ip >> 16) & 0xFF;
-  ip_bytes[2] = (acct->last_ip >> 8) & 0xFF;
-  ip_bytes[3] = acct->last_ip & 0xFF;
-  
-  // writing to file descriptor
-  int ret = dprintf(fd, summary_format,
-                    acct->userid,
-                    acct->email,
-                    acct->login_count,
-                    acct->login_fail_count,
-                    time_buffer,
-                    ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3],
-                    status,
-                    acct->birthdate);
-  
-  if (ret < 0) {
-      log_message(LOG_ERROR, "Failed to write account summary to file descriptor");
-      return false;
-  }
-  
-  return true;
+    if (acct == NULL) {
+        log_message(LOG_ERROR, "Null pointer passed to account_print_summary");
+        panic("Null pointer in account_print_summary");
+        return false;
+    }
+    
+    // buffer for formatting time
+    char time_buffer[64];
+    
+    // format for printing
+    const char *summary_format = 
+        "Account Summary for: %s\n"
+        "Email: %s\n"
+        "Login Count: %u\n"
+        "Failed Login Attempts: %u\n"
+        "Last Login: %s\n"
+        "Last IP: %u.%u.%u.%u\n"
+        "Account Status: %s\n"
+        "Birth Date: %s\n";
+    
+    // getting account status
+    bool is_banned = account_is_banned(acct);
+    bool is_expired = account_is_expired(acct);
+    const char *status = is_banned ? "BANNED" : 
+                        (is_expired ? "EXPIRED" : "ACTIVE");
+    
+    // formatting last login time
+    if (acct->last_login_time == 0) {
+        strcpy(time_buffer, "Never");
+    } else {
+        struct tm *tm_ptr = localtime(&acct->last_login_time);
+        if (tm_ptr != NULL) {
+            strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", tm_ptr);
+        } else {
+            strcpy(time_buffer, "Invalid time");
+        }
+    }
+    
+    // extracting IP address bytes with proper bounds checking
+    unsigned char ip_bytes[4];
+    ip_bytes[0] = (unsigned char)((acct->last_ip >> 24) & 0xFF);
+    ip_bytes[1] = (unsigned char)((acct->last_ip >> 16) & 0xFF);
+    ip_bytes[2] = (unsigned char)((acct->last_ip >> 8) & 0xFF);
+    ip_bytes[3] = (unsigned char)(acct->last_ip & 0xFF);
+    
+    // Use dprintf for direct fd writing (recommended by banned.h)
+    int ret = dprintf(fd, summary_format,
+                     acct->userid,
+                     acct->email,
+                     acct->login_count,
+                     acct->login_fail_count,
+                     time_buffer,
+                     ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3],
+                     status,
+                     acct->birthdate);
+    
+    if (ret < 0) {
+        log_message(LOG_ERROR, "Failed to write account summary");
+        return false;
+    }
+    
+    return true;
 }
