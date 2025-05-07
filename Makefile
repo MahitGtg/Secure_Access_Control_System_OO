@@ -94,8 +94,13 @@ TEST_NAMES := $(patsubst $(TEST_DIR)/test_%.c,%,$(TEST_SRC))
 TEST_BINS := $(patsubst %,test/test_%,$(TEST_NAMES))
 
 # Pattern rule for building test binaries
-# This automatically links each test_X.c file with the corresponding X.c source file
 test/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
+	@echo "Building test for $*"
+	@echo "Test source: $(TEST_DIR)/test_$*.c"
+	@echo "Source file: $(SRC_DIR)/$*.c"
+	@echo "Test CFLAGS: $(TEST_CFLAGS)"
+	@echo "Test LDFLAGS: $(TEST_LDFLAGS)"
+	@mkdir -p test
 	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
 
 # Main test target that builds and runs all tests
@@ -114,7 +119,7 @@ test: $(TEST_BINS)
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW $(TEST_BINS)
 
-.PHONY: all clean test $(TEST_BINS)
+.PHONY: all clean test
 
 .DELETE_ON_ERROR:
 
