@@ -29,7 +29,6 @@ int main(int argc, char *argv[]) {
   account_set_email(acc, "");
   (void) account_print_summary(acc, STDOUT_FILENO);
   (void) res;
-  handle_login("", "", 0, 0, STDOUT_FILENO, STDOUT_FILENO, NULL);
+  handle_login("", "", 0, 0, STDOUT_FILENO, NULL);
   return 0;
 }
-
