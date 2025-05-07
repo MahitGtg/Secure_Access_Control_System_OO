@@ -8,9 +8,11 @@
 #include <time.h>
 #include <ctype.h> /* For isdigit() */
 #include <pthread.h>
+#include <stdbool.h>
 
 // Implementation of panic function
-static void panic(const char *msg) {
+static void panic(const char *msg)
+{
     log_message(LOG_ERROR, "PANIC: %s", msg);
     abort();
 }
@@ -358,9 +360,24 @@ bool account_is_expired(const account_t *acc)
 
 void account_set_unban_time(account_t *acc, time_t t)
 {
-    // remove the contents of this function and replace it with your own code.
-    (void)acc;
-    (void)t;
+    if (acc == NULL)
+    {
+        log_message(LOG_ERROR, "Null pointer passed to account_set_unban_time");
+        panic("Null pointer in account_set_unban_time"); // critical error - abort
+        return;
+    }
+
+    // thread safe - acquire lock
+    pthread_mutex_lock(&account_mutex);
+
+    // setting the unban time
+    acc->unban_time = t;
+
+    // thread safe - release lock
+    pthread_mutex_unlock(&account_mutex);
+
+    // logging the update
+    log_message(LOG_INFO, "Unban time set for user %s", acc->userid);
 }
 
 void account_set_expiration_time(account_t *acc, time_t t)
@@ -402,8 +419,8 @@ void account_set_email(account_t *acc, const char *new_email)
         return;
     }
 
-    // using strnlen for length check --> safe practice
-    size_t email_len = strnlen(new_email, EMAIL_LENGTH);
+    // using strlen for length check since we're checking length anyway
+    size_t email_len = strlen(new_email);
 
     // checking if email is too long
     if (email_len >= EMAIL_LENGTH)
@@ -415,9 +432,9 @@ void account_set_email(account_t *acc, const char *new_email)
     // checking if email is in valid format - ASCII printable characters only, no spaces
     for (size_t i = 0; i < email_len; i++)
     {
-        if (!isprint(new_email[i]) || isspace(new_email[i]))
+        if (!isprint((unsigned char)new_email[i]) || isspace((unsigned char)new_email[i]))
         {
-            log_message(LOG_ERROR, "Invalid character in emailat position %zu", i);
+            log_message(LOG_ERROR, "Invalid character in email at position %zu", i);
             return;
         }
     }

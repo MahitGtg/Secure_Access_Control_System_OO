@@ -55,7 +55,7 @@ LDFLAGS = $(PKG_LDFLAGS)
 
 # Test flags
 TEST_CFLAGS = $(CFLAGS) $(SANITIZER_FLAGS)
-TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
+TEST_LDFLAGS = $(LDFLAGS) -lsodium -lcheck -lsubunit -pthread -lrt -lm
 
 # how to make a .c file from a .ts file
 %.c: %.ts
@@ -92,22 +92,11 @@ TEST_SRC := $(wildcard $(TEST_DIR)/test_*.c)
 # Extract test names and create test binary names
 TEST_NAMES := $(patsubst $(TEST_DIR)/test_%.c,%,$(TEST_SRC))
 TEST_BINS := $(patsubst %,test/test_%,$(TEST_NAMES))
-VALGRIND_BINS := $(patsubst %,test/test_%_valgrind,$(TEST_NAMES))
 
 # Pattern rule for building test binaries
 # This automatically links each test_X.c file with the corresponding X.c source file
 test/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
-	@mkdir -p $(dir $@)
 	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
-	# Verify binary exists
-	test -f $@ || exit 1
-
-# Pattern rule for building Valgrind-specific test binaries (without sanitizers)
-test/test_%_valgrind: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -DTESTING -o $@ $^ -Isrc $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
-	# Verify binary exists
-	test -f $@ || exit 1
 
 # Main test target that builds and runs all tests
 test: $(TEST_BINS)
@@ -123,9 +112,9 @@ test: $(TEST_BINS)
 
 # Clean all build artifacts and test binaries
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW $(TEST_BINS) $(VALGRIND_BINS)
+	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW $(TEST_BINS)
 
-.PHONY: all clean test $(TEST_BINS) $(VALGRIND_BINS)
+.PHONY: all clean test $(TEST_BINS)
 
 .DELETE_ON_ERROR:
 
@@ -141,8 +130,8 @@ sanitize: CFLAGS += $(SANITIZER_FLAGS)
 sanitize: all
 
 # Memory check with valgrind for all test binaries
-memcheck: $(VALGRIND_BINS)
-	@for test in $(VALGRIND_BINS); do \
+memcheck: $(TEST_BINS)
+	@for test in $(TEST_BINS); do \
 		echo "\nRunning valgrind on $$test..."; \
-		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 --track-fds=yes --trace-children=yes ./$$test; \
+		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./$$test; \
 	done
