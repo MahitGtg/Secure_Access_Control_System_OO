@@ -121,7 +121,7 @@ bool account_is_banned(const account_t *acc) {
   pthread_mutex_unlock(&account_mutex);
 
   // special case: 0 means not banned
-  if (acc->unban_time == 0) {
+  if (unban_time == 0) {
       return false;
   }  
 
