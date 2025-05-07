@@ -93,6 +93,11 @@ TEST_SRC := $(wildcard $(TEST_DIR)/test_*.c)
 TEST_NAMES := $(patsubst $(TEST_DIR)/test_%.c,%,$(TEST_SRC))
 TEST_BINS := $(patsubst %,test/test_%,$(TEST_NAMES))
 
+# Valgrind-specific test binaries
+VALGRIND_TEST_SRC := $(wildcard $(TEST_DIR)/test_*_valgrind.c)
+VALGRIND_TEST_NAMES := $(patsubst $(TEST_DIR)/test_%.c,%,$(VALGRIND_TEST_SRC))
+VALGRIND_TEST_BINS := $(patsubst %,test/test_%,$(VALGRIND_TEST_NAMES))
+
 # Pattern rule for building test binaries
 test/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
 	@echo "Building test for $*"
@@ -134,11 +139,11 @@ docs:
 sanitize: CFLAGS += $(SANITIZER_FLAGS)
 sanitize: all
 
-# Memory check with valgrind for all test binaries
+# Memory check with valgrind for valgrind-specific test binaries only
 memcheck: TEST_CFLAGS := $(CFLAGS)
 memcheck: TEST_LDFLAGS := $(LDFLAGS) -lsodium -lcheck -lsubunit -pthread -lrt -lm
-memcheck: $(TEST_BINS)
-	@for test in $(TEST_BINS); do \
+memcheck: $(VALGRIND_TEST_BINS)
+	@for test in $(VALGRIND_TEST_BINS); do \
 		echo "\nRunning valgrind on $$test..."; \
-		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./$$test; \
+		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 --track-fds=yes --trace-children=yes ./$$test; \
 	done
