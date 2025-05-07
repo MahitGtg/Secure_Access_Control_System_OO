@@ -5,10 +5,10 @@
 #include <unistd.h>
 #include "../src/account.h"
 #include "../src/logging.h"
+#include <sodium.h>
 
 // test fixture setup
 static account_t *test_acc;
-
 
 void setup(void) {
     // create a test account before each test
@@ -170,6 +170,11 @@ Suite *account_suite(void) {
 
 // main function for running tests
 int main(void) {
+    if (sodium_init() < 0) {
+        fprintf(stderr, "libsodium init failed\n");
+        return 1;
+    }
+
     Suite *s = account_suite();
     SRunner *sr = srunner_create(s);
     

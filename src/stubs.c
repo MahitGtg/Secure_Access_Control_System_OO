@@ -6,6 +6,9 @@
 // You can replace these stub implementations with your own code,
 // if you wish.
 
+// allow access to FILE-based IO (e.g. fprintf) in this translation unit
+#define CITS3007_PERMISSIVE
+
 #include "logging.h"
 #include "db.h"
 
@@ -13,6 +16,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include "banned.h"
 
 
 /**
@@ -24,7 +28,7 @@
  * 
  * This function should not return.
  */
-void panic(const char *msg) {
+static void panic(const char *msg) {
   fprintf(stderr, "PANIC: %s\n", msg);
   abort();
 }
