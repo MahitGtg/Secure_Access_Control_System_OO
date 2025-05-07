@@ -23,12 +23,23 @@ jobs:
         grep -q "libsodium" libraries.txt || echo "libsodium" >> libraries.txt
         grep -q "check" libraries.txt || echo "check" >> libraries.txt
         
+    - name: Debug directory structure
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "Directory contents:"
+        ls -la
+        echo "Test directory contents:"
+        ls -la test/
+        
     - name: Build project
-      run: make all
-      
+      run: |
+        make all
+        echo "After make all:"
+        ls -la test/
+        
     - name: Run tests with sanitizers
       run: |
-        make test
+        make test VERBOSE=1
         
     - name: Run Valgrind memory check
       run: |

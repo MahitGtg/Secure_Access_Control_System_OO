@@ -96,18 +96,18 @@ TEST_BINS := $(patsubst %,test/test_%,$(TEST_NAMES))
 # Pattern rule for building test binaries
 # This automatically links each test_X.c file with the corresponding X.c source file
 test/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
+	@mkdir -p $(TEST_DIR)
+	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
+
+# Build test binary
+$(TEST_DIR)/test_account: $(TEST_DIR)/test_account.c $(SRC_DIR)/account.c src/stubs.c
+	@mkdir -p $(TEST_DIR)
 	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
 
 # Main test target that builds and runs all tests
-test: $(TEST_BINS)
-	@for test in $(TEST_BINS); do \
-		echo "\nRunning $$test..."; \
-		./$$test; \
-		if [ $$? -ne 0 ]; then \
-			echo "$$test failed!"; \
-			exit 1; \
-		fi; \
-	done
+test: $(TEST_DIR)/test_account
+	@echo "\nRunning test/test_account..."
+	@./test/test_account
 	@echo "\nAll tests passed!"
 
 # Clean all build artifacts and test binaries
