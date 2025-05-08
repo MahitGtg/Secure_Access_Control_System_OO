@@ -223,7 +223,7 @@ START_TEST(test_account_create_birthdate_memcpy)
     account_t *acc = account_create("bob", "Password123!", "bob.smith@example.com", "1990-01-01");
     ck_assert_ptr_nonnull(acc);
     // Check that birthdate is copied exactly, no null terminator
-    char expected[11] = "1990-01-01";
+    const char expected[11] = "1990-01-01";
     ck_assert(memcmp(acc->birthdate, expected, 10) == 0);
     account_free(acc);
 }
