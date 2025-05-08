@@ -38,4 +38,4 @@ Thumbs.db
 
 # Dependency files that might be generated
 compile_commands.json
-.clangd/
+.clangd/.vscode/
