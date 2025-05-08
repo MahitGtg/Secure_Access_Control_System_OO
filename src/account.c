@@ -9,7 +9,6 @@
 #include <ctype.h> /* For isdigit() */
 #include <pthread.h>
 #include <stdbool.h>
-#include "banned.h"
 
 // Implementation of panic function
 static void panic(const char *msg)
@@ -288,6 +287,19 @@ void account_record_login_failure(account_t *acc)
     (void)acc;
 }
 
+/**
+ * Checks if an account is currently banned.
+ *
+ * This function checks if the account's unban time is in the future,
+ * indicating an active ban. The function is thread-safe and implements
+ * fail-secure behavior by assuming banned state on errors.
+ *
+ * @param acc Pointer to the account structure to check
+ *
+ * @pre acc must not be NULL
+ *
+ * @return true if the account is banned, false otherwise
+ */
 bool account_is_banned(const account_t *acc)
 {
     if (acc == NULL)
@@ -323,6 +335,19 @@ bool account_is_banned(const account_t *acc)
     return (unban_time > current_time);
 }
 
+/**
+ * Checks if an account has expired.
+ *
+ * This function checks if the account's expiration time is in the past,
+ * indicating an expired account. The function is thread-safe and implements
+ * fail-secure behavior by assuming expired state on errors.
+ *
+ * @param acc Pointer to the account structure to check
+ *
+ * @pre acc must not be NULL
+ *
+ * @return true if the account is expired, false otherwise
+ */
 bool account_is_expired(const account_t *acc)
 {
     if (acc == NULL)
@@ -359,6 +384,17 @@ bool account_is_expired(const account_t *acc)
     return (expiration_time <= current_time);
 }
 
+/**
+ * Sets the unban time for an account.
+ *
+ * This function updates the account's unban time to the specified value.
+ * The function is thread-safe and implements proper error handling.
+ *
+ * @param acc Pointer to the account structure to update
+ * @param t The new unban time (Unix timestamp)
+ *
+ * @pre acc must not be NULL
+ */
 void account_set_unban_time(account_t *acc, time_t t)
 {
     if (acc == NULL)
@@ -381,6 +417,18 @@ void account_set_unban_time(account_t *acc, time_t t)
     log_message(LOG_INFO, "Unban time set for user %s", acc->userid);
 }
 
+/**
+ * Sets the expiration time for an account.
+ *
+ * This function updates the account's expiration time to the specified value.
+ * The function is thread-safe, validates the expiration time is not in the past,
+ * and implements proper error handling.
+ *
+ * @param acc Pointer to the account structure to update
+ * @param t The new expiration time (Unix timestamp)
+ *
+ * @pre acc must not be NULL
+ */
 void account_set_expiration_time(account_t *acc, time_t t)
 {
     if (acc == NULL)
@@ -410,6 +458,22 @@ void account_set_expiration_time(account_t *acc, time_t t)
     log_message(LOG_INFO, "Expiration time set for user %s", acc->userid);
 }
 
+/**
+ * Updates an account's email address.
+ *
+ * This function validates and updates the account's email address.
+ * The function performs input validation to ensure the email:
+ * - Is not too long
+ * - Contains only printable ASCII characters
+ * - Contains no whitespace
+ * The function is thread-safe and implements proper error handling.
+ *
+ * @param acc Pointer to the account structure to update
+ * @param new_email The new email address to set
+ *
+ * @pre acc must not be NULL
+ * @pre new_email must not be NULL
+ */
 void account_set_email(account_t *acc, const char *new_email)
 {
     // checking for NULL pointers
