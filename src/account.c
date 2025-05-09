@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include "account.h"
 #include <string.h>
 #include <sodium.h>
@@ -13,11 +11,23 @@
 #include <pthread.h>
 #include <stdint.h>  // for uint8_t
 #include <arpa/inet.h>
-#include "banned.h"
 
 
 static pthread_mutex_t acc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static bool safe_fd_printf(int fd, const char *fmt, ...) {
+  char buffer[512];
+  va_list args;
+  va_start(args, fmt);
+  int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
+  va_end(args);
+
+  if (len < 0 || (size_t)len >= sizeof(buffer)) {
+      return false;
+  }
+
+  return write(fd, buffer, (size_t)len) == (ssize_t)len;
+}
 
 /**
  * Create a new account with the specified parameters.
@@ -157,21 +167,20 @@ void account_set_email(account_t *acc, const char *new_email)
 
 bool account_print_summary(const account_t *acct, int fd)
 {
-  if (!acct || fd < 0) {
-    log_message(LOG_ERROR, "account_print_summary: Invalid arguments");
-    return false;
-  }
+    if (!acct || fd < 0) {
+        log_message(LOG_ERROR, "account_print_summary: Invalid arguments");
+        return false;
+    }
 
+    safe_fd_printf(fd, "=== Account Summary ===\n");
+    safe_fd_printf(fd, "User ID: %s\n", acct->userid);
+    safe_fd_printf(fd, "Email: %s\n", acct->email);
+    safe_fd_printf(fd, "Birthdate: %s\n", acct->birthdate);
+    safe_fd_printf(fd, "Login Count: %u\n", acct->login_count);
+    safe_fd_printf(fd, "Login Failures: %u\n", acct->login_fail_count);
 
-  dprintf(fd, "=== Account Summary ===\n");
-  dprintf(fd, "User ID: %s\n", acct->userid);
-  dprintf(fd, "Email: %s\n", acct->email);
-  dprintf(fd, "Birthdate: %s\n", acct->birthdate);
-  dprintf(fd, "Login Count: %u\n", acct->login_count);
-  dprintf(fd, "Login Failures: %u\n", acct->login_fail_count);
-
-  // Format last login time
-  char time_str[64] = "N/A";
+    
+    char time_str[64] = "N/A";
     if (acct->last_login_time > 0) {
         struct tm *lt = localtime(&acct->last_login_time);
         if (lt) {
@@ -179,19 +188,17 @@ bool account_print_summary(const account_t *acct, int fd)
         }
     }
 
-    // IP formatting
+    
     struct in_addr addr = { .s_addr = acct->last_ip };
     char ip_str[INET_ADDRSTRLEN] = "unavailable";
     inet_ntop(AF_INET, &addr, ip_str, sizeof(ip_str));
 
-
-    dprintf(fd, "Last Login IP: %s\n", ip_str);
-    dprintf(fd, "Last Login Time: %s\n", time_str);
-    dprintf(fd, "=======================\n");
+    safe_fd_printf(fd, "Last Login IP: %s\n", ip_str);
+    safe_fd_printf(fd, "Last Login Time: %s\n", time_str);
+    safe_fd_printf(fd, "=======================\n");
 
     log_message(LOG_INFO,
         "[account_print_summary]: Printed summary for user '%s'.", acct->userid);
 
     return true;
 }
-
