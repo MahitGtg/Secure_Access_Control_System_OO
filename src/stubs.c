@@ -8,10 +8,11 @@
 
 // allow access to FILE-based IO (e.g. fprintf) in this translation unit
 #define CITS3007_PERMISSIVE
+#define _POSIX_C_SOURCE 200809L
 
 #include "logging.h"
 #include "db.h"
-
+#include "stubs.h"
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -95,3 +96,29 @@ bool account_lookup_by_userid(const char *userid, account_t *acc) {
   return false;
 }
 
+/* no-op stubs for test linking – mark them weak so the real ones in account.c win */
+__attribute__((weak))
+void account_record_login_failure(account_t *acct) {
+    (void)acct;
+}
+
+__attribute__((weak))
+void account_record_login_success(account_t *acct, ip4_addr_t client_ip) {
+    (void)acct;
+    (void)client_ip;
+}
+
+
+/* stub out the real session-token generator */
+char *generate_session_token(void) {
+    static const char *tok = "stub_token";
+    size_t len = strlen(tok) + 1;
+
+    char *buf = malloc(len);
+    if (!buf) {
+        /* in a real stub you might panic, but tests rarely exercise OOM */
+        return NULL;
+    }
+    memcpy(buf, tok, len);
+    return buf;
+}
