@@ -21,32 +21,156 @@ static pthread_mutex_t account_mutex = PTHREAD_MUTEX_INITIALIZER;
 // The status check functions don't modify state, so they don't need mutex protection.
 // However, they should read consistent state.
 
+// Helper: check if email is ASCII printable and has no spaces
+static bool is_valid_email(const char *email)
+{
+    if (!email)
+        return false;
+    if (!strchr(email, '@'))
+    {
+        log_message(LOG_ERROR, "account_create: Invalid email format (missing @)");
+        return false; // Return false, not NULL
+    }
+    for (const char *p = email; *p; ++p)
+    {
+        if (*p == ' ' || !isprint((unsigned char)*p) || (unsigned char)*p > 127)
+            return false;
+    }
+    return true;
+}
+
+// Helper: check if birthdate is YYYY-MM-DD and valid
+static bool is_valid_birthdate(const char *birthdate)
+{
+    if (!birthdate)
+        return false;
+    // Must be exactly 10 chars: YYYY-MM-DD
+    if (strlen(birthdate) != 10)
+        return false;
+    // Check format
+    for (int i = 0; i < 10; ++i)
+    {
+        if (i == 4 || i == 7)
+        {
+            if (birthdate[i] != '-')
+                return false;
+        }
+        else
+        {
+            if (!isdigit((unsigned char)birthdate[i]))
+                return false;
+        }
+    }
+    // Check valid month/day
+    char *endptr;
+    int year = (int)strtol(birthdate, &endptr, 10);
+    int month = (int)strtol(birthdate + 5, &endptr, 10);
+    int day = (int)strtol(birthdate + 8, &endptr, 10);
+    if (month < 1 || month > 12)
+        return false;
+    if (day < 1 || day > 31)
+        return false;
+    // Basic day check for each month
+    static const int days_in_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    int max_day = days_in_month[month - 1];
+    // Leap year for February
+    if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)))
+        max_day = 29;
+    if (day > max_day)
+        return false;
+    return true;
+}
+
 /**
- * Create a new account with the specified parameters.
+ * Creates a new account with the specified parameters.
  *
- * This function initializes a new dynamically allocated account structure
- * with the given user ID, hash information derived from the specified plaintext password, email address,
- * and birthdate. Other fields are set to their default values.
+ * This function initializes a new account structure with:
+ * - User ID
+ * - Securely hashed password
+ * - Email address
+ * - Birthdate
  *
- * On success, returns a pointer to the newly created account structure.
- * On error, returns NULL and logs an error message.
+ * The function performs validation on all inputs and securely
+ * handles the password using libsodium's Argon2id implementation.
+ *
+ * @param userid The user ID for the account
+ * @param plaintext_password The password to hash and store
+ * @param email The email address for the account
+ * @param birthdate The birthdate in YYYY-MM-DD format
+ * @return Pointer to the new account structure, or NULL on failure
  */
 account_t *account_create(const char *userid, const char *plaintext_password,
                           const char *email, const char *birthdate)
 {
-    // remove the contents of this function and replace it with your own code.
-    (void)userid;
-    (void)plaintext_password;
-    (void)email;
-    (void)birthdate;
+    if (!userid || !plaintext_password || !email || !birthdate)
+    {
+        log_message(LOG_ERROR, "account_create: NULL argument provided");
+        return NULL;
+    }
+    if (!*userid || !*plaintext_password || !*email || !*birthdate)
+    {
+        log_message(LOG_ERROR, "account_create: Empty string argument provided");
+        return NULL;
+    }
+    if (!is_valid_email(email))
+    {
+        log_message(LOG_ERROR, "account_create: Invalid email format");
+        return NULL;
+    }
+    if (!is_valid_birthdate(birthdate))
+    {
+        log_message(LOG_ERROR, "account_create: Invalid birthdate format");
+        return NULL;
+    }
 
-    return NULL;
+    account_t *acc = (account_t *)malloc(sizeof(account_t));
+    if (!acc)
+    {
+        log_message(LOG_ERROR, "account_create: Memory allocation failed");
+        return NULL;
+    }
+    memset(acc, 0, sizeof(account_t));
+
+    // Copy user data with proper null termination
+    strncpy(acc->userid, userid, USER_ID_LENGTH - 1);
+    acc->userid[USER_ID_LENGTH - 1] = '\0';
+    strncpy(acc->email, email, EMAIL_LENGTH - 1);
+    acc->email[EMAIL_LENGTH - 1] = '\0';
+    // Use memcpy for birthdate: fixed length, not null-terminated
+    memcpy(acc->birthdate, birthdate, BIRTHDATE_LENGTH); // Safe: exactly 10 bytes, no null terminator
+
+    if (sodium_init() < 0)
+    {
+        log_message(LOG_ERROR, "account_create: libsodium initialization failed");
+        free(acc);
+        return NULL;
+    }
+    if (crypto_pwhash_str(acc->password_hash, plaintext_password, strlen(plaintext_password),
+                          crypto_pwhash_OPSLIMIT_INTERACTIVE, crypto_pwhash_MEMLIMIT_INTERACTIVE) != 0)
+    {
+        log_message(LOG_ERROR, "account_create: password hashing failed");
+        free(acc);
+        return NULL;
+    }
+    return acc;
 }
 
+/**
+ * Frees an account structure and securely wipes its contents.
+ *
+ * This function:
+ * - Securely wipes the account memory using sodium_memzero
+ * - Frees the allocated memory
+ * - Safely handles NULL pointers
+ *
+ * @param acc Pointer to the account structure to free
+ */
 void account_free(account_t *acc)
 {
-    // remove the contents of this function and replace it with your own code.
-    (void)acc;
+    if (!acc)
+        return;
+    sodium_memzero(acc, sizeof(account_t));
+    free(acc);
 }
 
 /**
@@ -274,6 +398,18 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
     log_message(LOG_INFO, "account_update_password: password updated successfully");
     return true;
 }
+
+/**
+ * Records a successful login attempt for an account.
+ *
+ * This function updates the account's:
+ * - Login count
+ * - Last login time
+ * - Last IP address
+ *
+ * @param acc Pointer to the account structure
+ * @param ip The IPv4 address of the successful login
+ */
 void account_record_login_success(account_t *acc, ip4_addr_t ip)
 {
     // remove the contents of this function and replace it with your own code.
@@ -281,6 +417,15 @@ void account_record_login_success(account_t *acc, ip4_addr_t ip)
     (void)ip;
 }
 
+/**
+ * Records a failed login attempt for an account.
+ *
+ * This function updates the account's:
+ * - Failed login count
+ * - May trigger account banning based on failed attempts
+ *
+ * @param acc Pointer to the account structure
+ */
 void account_record_login_failure(account_t *acc)
 {
     // remove the contents of this function and replace it with your own code.
@@ -290,14 +435,12 @@ void account_record_login_failure(account_t *acc)
 /**
  * Checks if an account is currently banned.
  *
- * This function checks if the account's unban time is in the future,
- * indicating an active ban. The function is thread-safe and implements
- * fail-secure behavior by assuming banned state on errors.
+ * This function:
+ * - Is thread-safe using mutex protection
+ * - Implements fail-secure behavior
+ * - Returns true if the account is banned, false otherwise
  *
  * @param acc Pointer to the account structure to check
- *
- * @pre acc must not be NULL
- *
  * @return true if the account is banned, false otherwise
  */
 bool account_is_banned(const account_t *acc)
@@ -338,14 +481,12 @@ bool account_is_banned(const account_t *acc)
 /**
  * Checks if an account has expired.
  *
- * This function checks if the account's expiration time is in the past,
- * indicating an expired account. The function is thread-safe and implements
- * fail-secure behavior by assuming expired state on errors.
+ * This function:
+ * - Is thread-safe using mutex protection
+ * - Implements fail-secure behavior
+ * - Returns true if the account is expired, false otherwise
  *
  * @param acc Pointer to the account structure to check
- *
- * @pre acc must not be NULL
- *
  * @return true if the account is expired, false otherwise
  */
 bool account_is_expired(const account_t *acc)
@@ -387,13 +528,13 @@ bool account_is_expired(const account_t *acc)
 /**
  * Sets the unban time for an account.
  *
- * This function updates the account's unban time to the specified value.
- * The function is thread-safe and implements proper error handling.
+ * This function:
+ * - Is thread-safe using mutex protection
+ * - Updates the account's unban time
+ * - Logs the update
  *
- * @param acc Pointer to the account structure to update
+ * @param acc Pointer to the account structure
  * @param t The new unban time (Unix timestamp)
- *
- * @pre acc must not be NULL
  */
 void account_set_unban_time(account_t *acc, time_t t)
 {
@@ -420,14 +561,14 @@ void account_set_unban_time(account_t *acc, time_t t)
 /**
  * Sets the expiration time for an account.
  *
- * This function updates the account's expiration time to the specified value.
- * The function is thread-safe, validates the expiration time is not in the past,
- * and implements proper error handling.
+ * This function:
+ * - Is thread-safe using mutex protection
+ * - Validates the expiration time is not in the past
+ * - Updates the account's expiration time
+ * - Logs the update
  *
- * @param acc Pointer to the account structure to update
+ * @param acc Pointer to the account structure
  * @param t The new expiration time (Unix timestamp)
- *
- * @pre acc must not be NULL
  */
 void account_set_expiration_time(account_t *acc, time_t t)
 {
@@ -461,18 +602,15 @@ void account_set_expiration_time(account_t *acc, time_t t)
 /**
  * Updates an account's email address.
  *
- * This function validates and updates the account's email address.
- * The function performs input validation to ensure the email:
- * - Is not too long
- * - Contains only printable ASCII characters
- * - Contains no whitespace
- * The function is thread-safe and implements proper error handling.
+ * This function:
+ * - Is thread-safe using mutex protection
+ * - Validates the email format
+ * - Ensures the email is not too long
+ * - Updates the account's email
+ * - Logs the update
  *
- * @param acc Pointer to the account structure to update
+ * @param acc Pointer to the account structure
  * @param new_email The new email address to set
- *
- * @pre acc must not be NULL
- * @pre new_email must not be NULL
  */
 void account_set_email(account_t *acc, const char *new_email)
 {
@@ -519,6 +657,18 @@ void account_set_email(account_t *acc, const char *new_email)
     log_message(LOG_INFO, "Email updated for user %s", acc->userid);
 }
 
+/**
+ * Prints a summary of an account to a file descriptor.
+ *
+ * This function: 
+ * - Prints account information in a human-readable format
+ * - Includes user ID, email, and status information
+ * - Uses the provided file descriptor for output
+ *
+ * @param acct Pointer to the account structure to print
+ * @param fd File descriptor to write the summary to
+ * @return true on success, false on failure
+ */
 bool account_print_summary(const account_t *acct, int fd)
 {
     // remove the contents of this function and replace it with your own code.
