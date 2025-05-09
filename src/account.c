@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "account.h"
 #include <string.h>
 #include <sodium.h>
@@ -6,11 +8,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h> /* For isdigit() */
-#include <unistd.h>    
+#include <unistd.h>
 #include <limits.h>    // for UINT_MAX
 #include <pthread.h>
 #include <stdint.h>  // for uint8_t
-#include "banned.h"
 #include <arpa/inet.h>
 
 
@@ -45,22 +46,6 @@ void account_free(account_t *acc)
   (void)acc;
 }
 
-/**
- * Validates if a supplied plaintext password matches the stored hash.
- *
- * This function securely compares the given plaintext password against
- * the password hash stored in the account structure using the Argon2id
- * algorithm. It implements constant-time verification to prevent timing attacks.
- *
- * @param acc Pointer to the account structure containing the password hash
- * @param plaintext_password The plaintext password to verify
- *
- * @pre acc must not be NULL
- * @pre plaintext_password must not be NULL
- * @pre acc->password_hash must contain a valid Argon2id hash
- *
- * @return true if the password matches, false otherwise
- */
 bool account_validate_password(const account_t *acc, const char *plaintext_password)
 {
   // remove the contents of this function and replace it with your own code.
@@ -69,27 +54,7 @@ bool account_validate_password(const account_t *acc, const char *plaintext_passw
   return false;
 }
 
-/**
- * Updates an account's password with a new securely hashed password.
- *
- * This function validates the new password for complexity requirements,
- * then generates a new Argon2id hash with a cryptographically secure
- * random salt. The hash is stored in the account structure. Old password
- * data is securely wiped from memory.
- *
- * Password complexity requirements:
- * - Minimum 8 characters
- * - Maximum 1024 characters
- * - Must contain at least 3 of: uppercase, lowercase, digits, special characters
- *
- * @param acc Pointer to the account structure to update
- * @param new_plaintext_password The new plaintext password
- *
- * @pre acc must not be NULL
- * @pre new_plaintext_password must not be NULL
- *
- * @return true if the password was successfully updated, false otherwise
- */
+
 bool account_update_password(account_t *acc, const char *new_plaintext_password)
 {
   // remove the contents of this function and replace it with your own code.
@@ -97,6 +62,8 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
   (void) new_plaintext_password;
   return false;
 }
+
+
 void account_record_login_success(account_t *acc, ip4_addr_t ip)
 {
   if (!acc) {
@@ -215,6 +182,7 @@ bool account_print_summary(const account_t *acct, int fd)
     struct in_addr addr = { .s_addr = acct->last_ip };
     char ip_str[INET_ADDRSTRLEN] = "unavailable";
     inet_ntop(AF_INET, &addr, ip_str, sizeof(ip_str));
+
 
     dprintf(fd, "Last Login IP: %s\n", ip_str);
     dprintf(fd, "Last Login Time: %s\n", time_str);
