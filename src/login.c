@@ -116,10 +116,10 @@
      return user_exists ? LOGIN_FAIL_BAD_PASSWORD : LOGIN_FAIL_USER_NOT_FOUND;
  }
  
- // 6) Snapshot for race-condition mitigation
- bool is_banned  = account_is_banned(&acct);
- bool is_expired = account_is_expired(&acct);
- int  fail_count = acct.login_fail_count;
+// 6) Snapshot for race-condition mitigation
+bool is_banned  = account_is_banned(&acct);
+bool is_expired = account_is_expired(&acct);
+unsigned int fail_count = acct.login_fail_count;
  
  // 7) Check banned status
  if (is_banned) {
@@ -150,7 +150,7 @@
  
  // 10) Record success and generate session token
  account_record_login_success(&acct, client_ip);
- session->account_id      = acct.account_id;
+ session->account_id      = (int)acct.account_id;
  session->session_start   = login_time;
  session->expiration_time = login_time + SESSION_DURATION;
  session->session_token   = generate_session_token();
