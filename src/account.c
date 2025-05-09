@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <stdint.h>  // for uint8_t
 #include <arpa/inet.h>
+#include "banned.h"
 
 
 static pthread_mutex_t acc_mutex = PTHREAD_MUTEX_INITIALIZER;
