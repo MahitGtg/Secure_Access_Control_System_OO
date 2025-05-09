@@ -6,10 +6,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h> /* For isdigit() */
-#include "banned.h"
-#include <unistd.h>    // for dprintf
+#include <unistd.h>    
 #include <limits.h>    // for UINT_MAX
 #include <pthread.h>
+#include <stdint.h>  // for uint8_t
 
 
 static pthread_mutex_t acc_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -339,6 +339,8 @@ void account_set_email(account_t *acc, const char *new_email)
   (void)new_email;
 }
 
+
+
 bool account_print_summary(const account_t *acct, int fd)
 {
   if (!acct || fd < 0) {
@@ -351,20 +353,22 @@ bool account_print_summary(const account_t *acct, int fd)
   if (acct->last_login_time > 0) {
     struct tm *lt = localtime(&acct->last_login_time);
     if (lt) {
-        if (strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", lt) == 0) {
-            strncpy(time_buf, "invalid time", sizeof(time_buf));
-            time_buf[sizeof(time_buf) - 1] = '\0';
-        }
+      if (strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", lt) == 0) {
+        strncpy(time_buf, "invalid time", sizeof(time_buf));
+        time_buf[sizeof(time_buf) - 1] = '\0';
+      }
     }
   }
 
-  // Format IP address (stored as uint32_t)
+  // Format IP address
   uint8_t ip1 = (acct->last_ip >> 24) & 0xFF;
   uint8_t ip2 = (acct->last_ip >> 16) & 0xFF;
   uint8_t ip3 = (acct->last_ip >> 8) & 0xFF;
   uint8_t ip4 = acct->last_ip & 0xFF;
 
-  int result = dprintf(fd,
+  // Compose the output string
+  char buffer[512];
+  int len = snprintf(buffer, sizeof(buffer),
       "Account Summary:\n"
       "User ID: %s\n"
       "Email: %s\n"
@@ -380,10 +384,11 @@ bool account_print_summary(const account_t *acct, int fd)
       ip1, ip2, ip3, ip4
   );
 
-  if (result < 0) {
+  if (len < 0 || write(fd, buffer, len) != len) {
     log_message(LOG_ERROR, "account_print_summary: Failed to write to fd");
     return false;
   }
 
   return true;
 }
+
