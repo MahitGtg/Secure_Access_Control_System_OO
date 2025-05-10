@@ -452,7 +452,7 @@ void account_record_login_success(account_t *acc, ip4_addr_t ip)
 
     // Inline time formatting
     char time_str[64] = "invalid";
-    struct tm *tm_info = localtime(&acc->last_login_time);
+    const struct tm *tm_info = localtime(&acc->last_login_time);
     if (tm_info) {
         strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
     }
@@ -750,7 +750,7 @@ bool account_print_summary(const account_t *acct, int fd)
     
     char time_str[64] = "N/A";
     if (acct->last_login_time > 0) {
-        struct tm *lt = localtime(&acct->last_login_time);
+        const struct tm *lt = localtime(&acct->last_login_time);
         if (lt) {
             strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", lt);
         }
