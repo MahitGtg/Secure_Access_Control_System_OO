@@ -10,27 +10,11 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <limits.h>    // for UINT_MAX
+#include <limits.h> // for UINT_MAX
 #include <pthread.h>
-#include <stdint.h>  // for uint8_t
+#include <stdint.h> // for uint8_t
 #include <arpa/inet.h>
-
-
-static pthread_mutex_t acc_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static bool safe_fd_printf(int fd, const char *fmt, ...) {
-  char buffer[512];
-  va_list args;
-  va_start(args, fmt);
-  int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
-  va_end(args);
-
-  if (len < 0 || (size_t)len >= sizeof(buffer)) {
-      return false;
-  }
-
-  return write(fd, buffer, (size_t)len) == (ssize_t)len;
-}
+#include "banned.h"
 
 // Implementation of panic function
 static void panic(const char *msg)
@@ -50,7 +34,7 @@ static bool is_valid_email(const char *email)
         return false;
     if (!strchr(email, '@'))
     {
-        log_message(LOG_ERROR, "account_create: Invalid email format (missing @)");
+        log_message(LOG_ERROR, "account_create: Invalid email format (missing @)"); 
         return false; // Return false, not NULL
     }
     for (const char *p = email; *p; ++p)
@@ -195,7 +179,7 @@ void account_free(account_t *acc)
     free(acc);
 }
 
- /**
+/**
  * Validates if a supplied plaintext password matches the stored hash.
  *
  * This function securely compares the given plaintext password against
@@ -428,71 +412,102 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
  * - Login count
  * - Last login time
  * - Last IP address
+ * - Resets consecutive failed login count
+ *
+ * Thread-safety is ensured using mutex protection.
  *
  * @param acc Pointer to the account structure
  * @param ip The IPv4 address of the successful login
  */
 void account_record_login_success(account_t *acc, ip4_addr_t ip)
 {
-  if (!acc) {
-    log_message(LOG_ERROR, "account_record_login_success: NULL account pointer");
-    return;
-  }
+    if (!acc)
+    {
+        log_message(LOG_ERROR, "account_record_login_success: NULL account pointer");
+        return;
+    }
 
-  pthread_mutex_lock(&acc_mutex);
+    // Get current time with error handling
+    time_t current_time = time(NULL);
+    if (current_time == (time_t)-1)
+    {
+        log_message(LOG_ERROR, "account_record_login_success: Failed to get current time");
+        current_time = 0; // Use epoch time as fallback
+    }
 
-  acc->login_count++;
-  acc->login_fail_count = 0;
-  acc->last_login_time = time(NULL);
-  acc->last_ip = ip;
+    // Thread safe - acquire lock
+    pthread_mutex_lock(&account_mutex);
 
-  struct in_addr addr = { .s_addr = ip };
+    // Update login statistics
+    acc->login_count++;
+    acc->login_fail_count = 0;
+    acc->last_login_time = current_time;
+    acc->last_ip = ip;
+
+    // Thread safe - release lock
+    pthread_mutex_unlock(&account_mutex);
+
+    // Format IP address for logging
+    struct in_addr addr = {.s_addr = ip};
     char ip_str[INET_ADDRSTRLEN] = "unknown";
-    inet_ntop(AF_INET, &addr, ip_str, sizeof(ip_str));
+    if (inet_ntop(AF_INET, &addr, ip_str, sizeof(ip_str)) == NULL)
+    {
+        strcpy(ip_str, "invalid-ip");
+    }
 
-    // Inline time formatting
-    char time_str[64] = "invalid";
-    const struct tm *tm_info = localtime(&acc->last_login_time);
-    if (tm_info) {
+    // Format time for logging
+    char time_str[64] = "unknown-time";
+    const struct tm *tm_info = localtime(&current_time);
+    if (tm_info)
+    {
         strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
     }
 
     log_message(LOG_INFO,
-        "[account_record_login_success]: User '%s' logged in from IP '%s' at '%s'.",
-        acc->userid, ip_str, time_str);
-
-  pthread_mutex_unlock(&acc_mutex);
+                "Login success: User '%s' logged in from IP '%s' at '%s'",
+                acc->userid, ip_str, time_str);
 }
-
 
 /**
  * Records a failed login attempt for an account.
  *
  * This function updates the account's:
  * - Failed login count
- * - May trigger account banning based on failed attempts
+ * - Resets consecutive login count
+ *
+ * Thread-safety is ensured using mutex protection.
  *
  * @param acc Pointer to the account structure
  */
 void account_record_login_failure(account_t *acc)
 {
-  if (!acc) {
-    log_message(LOG_ERROR, "account_record_login_failure: NULL account pointer");
-    return;
-  }
+    if (!acc)
+    {
+        log_message(LOG_ERROR, "account_record_login_failure: NULL account pointer");
+        return;
+    }
 
-  pthread_mutex_lock(&acc_mutex);
+    // Thread safe - acquire lock
+    pthread_mutex_lock(&account_mutex);
 
-  if (acc->login_fail_count < UINT_MAX) {
-    acc->login_fail_count++;
-  }
-  acc->login_count = 0;
+    // Increment failure count with overflow protection
+    if (acc->login_fail_count < UINT_MAX)
+    {
+        acc->login_fail_count++;
+    }
 
-  log_message(LOG_INFO,
-    "[account_record_login_failure]: Failure #%u for user '%s'.",
-    acc->login_fail_count, acc->userid);
+    // Reset login count
+    acc->login_count = 0;
 
-  pthread_mutex_unlock(&acc_mutex);
+    // Store current failure count for logging after mutex release
+    unsigned int failure_count = acc->login_fail_count;
+
+    // Thread safe - release lock
+    pthread_mutex_unlock(&account_mutex);
+
+    log_message(LOG_INFO,
+                "Login failure: Consecutive failure #%u for user '%s'",
+                failure_count, acc->userid);
 }
 
 /**
@@ -720,11 +735,16 @@ void account_set_email(account_t *acc, const char *new_email)
     log_message(LOG_INFO, "Email updated for user %s", acc->userid);
 }
 
+static bool safe_fd_write(int fd, const char *str)
+{
+    size_t len = strlen(str);
+    return write(fd, str, len) == (ssize_t)len;
+}
 
 /**
  * Prints a summary of an account to a file descriptor.
  *
- * This function: 
+ * This function:
  * - Prints account information in a human-readable format
  * - Includes user ID, email, and status information
  * - Uses the provided file descriptor for output
@@ -735,41 +755,91 @@ void account_set_email(account_t *acc, const char *new_email)
  */
 bool account_print_summary(const account_t *acct, int fd)
 {
-    if (!acct || fd < 0) {
-        log_message(LOG_ERROR, "account_print_summary: Invalid arguments");
+    if (!acct)
+    {
+        log_message(LOG_ERROR, "account_print_summary: NULL account pointer");
         return false;
     }
 
-    safe_fd_printf(fd, "=== Account Summary ===\n");
-    safe_fd_printf(fd, "User ID: %s\n", acct->userid);
-    safe_fd_printf(fd, "Email: %s\n", acct->email);
-    safe_fd_printf(fd, "Birthdate: %s\n", acct->birthdate);
-    safe_fd_printf(fd, "Login Count: %u\n", acct->login_count);
-    safe_fd_printf(fd, "Login Failures: %u\n", acct->login_fail_count);
-
-    
-    char time_str[64] = "N/A";
-    if (acct->last_login_time > 0) {
-        const struct tm *lt = localtime(&acct->last_login_time);
-        if (lt) {
-            strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", lt);
-        }
+    if (fd < 0)
+    {
+        log_message(LOG_ERROR, "account_print_summary: Invalid file descriptor");
+        return false;
     }
 
-    
-    struct in_addr addr = { .s_addr = acct->last_ip };
-    char ip_str[INET_ADDRSTRLEN] = "unavailable";
-    inet_ntop(AF_INET, &addr, ip_str, sizeof(ip_str));
+    char buffer[512];
 
-    safe_fd_printf(fd, "Last Login IP: %s\n", ip_str);
-    safe_fd_printf(fd, "Last Login Time: %s\n", time_str);
-    safe_fd_printf(fd, "=======================\n");
+    // Print header
+    if (!safe_fd_write(fd, "================== Account Summary ==================\n"))
+        return false;
 
-    log_message(LOG_INFO,
-        "[account_print_summary]: Printed summary for user '%s'.", acct->userid);
+    // Print user ID
+    snprintf(buffer, sizeof(buffer), "User ID: %s\n", acct->userid);
+    if (!safe_fd_write(fd, buffer))
+        return false;
 
+    // Print email
+    snprintf(buffer, sizeof(buffer), "Email: %s\n", acct->email);
+    if (!safe_fd_write(fd, buffer))
+        return false;
+
+    // Print birthdate
+    snprintf(buffer, sizeof(buffer), "Birthdate: %.10s\n", acct->birthdate);
+    if (!safe_fd_write(fd, buffer))
+        return false;
+
+    // Print account status information
+    snprintf(buffer, sizeof(buffer), "Account Status: %s\n",
+             account_is_banned(acct) ? "BANNED" : account_is_expired(acct) ? "EXPIRED"
+                                                                           : "ACTIVE");
+    if (!safe_fd_write(fd, buffer))
+        return false;
+
+    // Print login statistics
+    snprintf(buffer, sizeof(buffer), "Login Count: %u\n", acct->login_count);
+    if (!safe_fd_write(fd, buffer))
+        return false;
+
+    snprintf(buffer, sizeof(buffer), "Failed Login Count: %u\n", acct->login_fail_count);
+    if (!safe_fd_write(fd, buffer))
+        return false;
+
+    // Format and print last login time
+    char time_str[64] = "N/A";
+    if (acct->last_login_time > 0)
+    {
+        const struct tm *lt = localtime(&acct->last_login_time);
+        if (lt)
+        {
+            strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", lt);
+        }
+        else
+        {
+            strcpy(time_str, "invalid-time");
+        }
+    }
+    snprintf(buffer, sizeof(buffer), "Last Login Time: %s\n", time_str);
+    if (!safe_fd_write(fd, buffer))
+        return false;
+
+    // Format and print last IP address
+    char ip_str[INET_ADDRSTRLEN] = "N/A";
+    if (acct->last_ip != 0)
+    {
+        struct in_addr addr = {.s_addr = htonl(acct->last_ip)};
+        if (inet_ntop(AF_INET, &addr, ip_str, sizeof(ip_str)) == NULL)
+        {
+            strcpy(ip_str, "invalid-ip");
+        }
+    }
+    snprintf(buffer, sizeof(buffer), "Last Login IP: %s\n", ip_str);
+    if (!safe_fd_write(fd, buffer))
+        return false;
+
+    // Print footer
+    if (!safe_fd_write(fd, "====================================================\n"))
+        return false;
+
+    log_message(LOG_INFO, "Printed account summary for user '%s'", acct->userid);
     return true;
 }
-
-
-

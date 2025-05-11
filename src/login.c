@@ -1,5 +1,4 @@
 #include "login.h"
-#include "banned.h"
 
 login_result_t handle_login(const char *userid, const char *password,
                             ip4_addr_t client_ip, time_t login_time,
