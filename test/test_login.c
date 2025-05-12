@@ -8,28 +8,65 @@
 #include "login.h"
 #include "db.h"
 #include "logging.h"
-#include "token.h"
-
 
 #define BUF_SIZE 256
 
 // === Stub Implementations for Testing ===
-// These simulate your db and logging behaviors for isolated unit tests
+// These are weak symbols so they won't conflict with real implementations
 
-bool account_is_banned(const account_t *acct) {
+// Stub functions with __attribute__((weak)) to avoid conflicts with real implementations
+__attribute__((weak)) bool account_is_banned(const account_t *acct) {
+    // User ID 2 is a banned account for testing
     return acct->account_id == 2;
 }
 
-bool account_is_expired(const account_t *acct) {
+__attribute__((weak)) bool account_is_expired(const account_t *acct) {
+    // User ID 3 is an expired account for testing
     return acct->account_id == 3;
 }
 
-bool account_validate_password(const account_t *acct, const char *password) {
+__attribute__((weak)) bool account_validate_password(const account_t *acct, const char *password) {
+    // User ID 1 has password "correctpw"
     return (acct->account_id == 1 && strcmp(password, "correctpw") == 0);
 }
 
+__attribute__((weak)) void account_record_login_success(account_t *acc, ip4_addr_t ip) {
+    // Just a stub - does nothing
+    (void)acc;
+    (void)ip;
+}
 
+__attribute__((weak)) void account_record_login_failure(account_t *acc) {
+    // Just a stub - does nothing
+    (void)acc;
+}
 
+__attribute__((weak)) bool account_lookup_by_userid(const char *userid, account_t *result) {
+    if (strcmp(userid, "testuser") == 0) {
+        // Valid user for testing
+        result->account_id = 1;
+        strncpy(result->userid, "testuser", USER_ID_LENGTH - 1);
+        result->login_fail_count = 0;
+        return true;
+    } else if (strcmp(userid, "banned_user") == 0) {
+        // Banned user for testing
+        result->account_id = 2;
+        strncpy(result->userid, "banned_user", USER_ID_LENGTH - 1);
+        return true;
+    } else if (strcmp(userid, "expired_user") == 0) {
+        // Expired user for testing
+        result->account_id = 3;
+        strncpy(result->userid, "expired_user", USER_ID_LENGTH - 1);
+        return true;
+    } else if (strcmp(userid, "locked_user") == 0) {
+        // Locked user for testing (too many failed attempts)
+        result->account_id = 4;
+        strncpy(result->userid, "locked_user", USER_ID_LENGTH - 1);
+        result->login_fail_count = 11; // Over threshold (10)
+        return true;
+    }
+    return false;
+}
 
 // Helper: run an individual test and capture output
 static void run_test(const char *name,
@@ -46,11 +83,9 @@ static void run_test(const char *name,
     if (n > 0) buf[n] = '\0';
     printf("%s: res=%d, msg='%s'", name, res, buf);
     if (res == LOGIN_SUCCESS) {
-        printf(", start=%ld, expiry=%ld, token='%s'",
+        printf(", start=%ld, expiry=%ld", 
                (long)session->session_start,
-               (long)session->expiration_time,
-               session->session_token);
-        free(session->session_token);
+               (long)session->expiration_time);
     }
     printf("\n");
 }
@@ -65,6 +100,7 @@ int main(void) {
     time_t now = time(NULL);
     login_session_data_t session;
 
+    // Run tests for different login scenarios
     run_test("User Not Found",   "no_user",      "pw",        0, now, fds[1], fds[0], &session);
     run_test("Banned Account",   "banned_user",  "pw",        0, now, fds[1], fds[0], &session);
     run_test("Expired Account",  "expired_user", "pw",        0, now, fds[1], fds[0], &session);

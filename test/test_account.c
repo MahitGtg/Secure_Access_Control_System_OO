@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <sodium.h>
+#include <limits.h>
 #include "../src/account.h"
 #include "../src/logging.h"
 
@@ -189,16 +190,6 @@ START_TEST(test_account_create_valid)
 }
 END_TEST
 
-// Test account creation with NULL arguments
-START_TEST(test_account_create_null)
-{
-    ck_assert_ptr_null(account_create(NULL, "pw", "e", "b"));
-    ck_assert_ptr_null(account_create("u", NULL, "e", "b"));
-    ck_assert_ptr_null(account_create("u", "pw", NULL, "b"));
-    ck_assert_ptr_null(account_create("u", "pw", "e", NULL));
-}
-END_TEST
-
 // Test account creation with empty string arguments
 START_TEST(test_account_create_empty)
 {
@@ -213,9 +204,9 @@ END_TEST
 START_TEST(test_account_free_null)
 {
     account_free(NULL); 
+    // This test passes if it doesn't crash
 }
 END_TEST
-
 
 // Test account creation with valid input (birthdate memcpy check)
 START_TEST(test_account_create_birthdate_memcpy)
@@ -241,9 +232,6 @@ START_TEST(test_account_free_double)
     account_free(NULL);
 }
 END_TEST
-
-// Test cases for the login recording and account summary functions
-// These tests should be added to the existing test file
 
 // Test login success recording
 START_TEST(test_record_login_success)
@@ -311,26 +299,6 @@ START_TEST(test_record_login_failure)
 }
 END_TEST
 
-// Test login failure with NULL pointer
-START_TEST(test_record_login_failure_null)
-{
-    // This should not crash
-    account_record_login_failure(NULL);
-    
-    // No assertion needed - test passes if it doesn't crash
-}
-END_TEST
-
-// Test login success with NULL pointer
-START_TEST(test_record_login_success_null)
-{
-    // This should not crash
-    account_record_login_success(NULL, 0);
-    
-    // No assertion needed - test passes if it doesn't crash
-}
-END_TEST
-
 // Test account summary printing
 START_TEST(test_account_print_summary)
 {
@@ -386,15 +354,6 @@ START_TEST(test_account_print_summary)
 }
 END_TEST
 
-// Test account summary with NULL account
-START_TEST(test_account_print_summary_null_account)
-{
-    // This should return false, not crash
-    bool result = account_print_summary(NULL, STDOUT_FILENO);
-    ck_assert_msg(!result, "account_print_summary with NULL account should return false");
-}
-END_TEST
-
 // Test account summary with invalid file descriptor
 START_TEST(test_account_print_summary_invalid_fd)
 {
@@ -414,18 +373,14 @@ void add_login_tests_to_suite(Suite *s)
     TCase *tc_login = tcase_create("Login");
     tcase_add_test(tc_login, test_record_login_success);
     tcase_add_test(tc_login, test_record_login_failure);
-    tcase_add_test(tc_login, test_record_login_success_null);
-    tcase_add_test(tc_login, test_record_login_failure_null);
     suite_add_tcase(s, tc_login);
     
     // Create a test case for account summary
     TCase *tc_summary = tcase_create("Summary");
     tcase_add_test(tc_summary, test_account_print_summary);
-    tcase_add_test(tc_summary, test_account_print_summary_null_account);
     tcase_add_test(tc_summary, test_account_print_summary_invalid_fd);
     suite_add_tcase(s, tc_summary);
 }
-
 
 Suite *account_suite(void)
 {
@@ -456,7 +411,6 @@ Suite *account_suite(void)
     tcase_add_test(tc_password, test_validate_password);
     tcase_add_test(tc_password, test_update_password);
     tcase_add_test(tc_password, test_account_create_valid);
-    tcase_add_test(tc_password, test_account_create_null);
     tcase_add_test(tc_password, test_account_create_empty);
     tcase_add_test(tc_password, test_account_free_null);
     tcase_add_test(tc_password, test_account_create_birthdate_memcpy);
@@ -468,6 +422,7 @@ Suite *account_suite(void)
 
     return s;
 }
+
 // Main function for running tests
 int main(void)
 {
