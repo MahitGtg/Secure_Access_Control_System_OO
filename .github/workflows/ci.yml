@@ -59,11 +59,12 @@ jobs:
       run: |
         # Run strict checks on the implementation files you need to submit
         cppcheck --enable=all --suppress=missingIncludeSystem --suppress=unusedFunction --error-exitcode=1 \
-          src/account.c src/login.c
+          src/account.c src/login.c src/token.c
         
     - name: Run Cppcheck on test files
       run: |
         # Check test files but with fewer restrictions
         cppcheck --enable=all --suppress=missingIncludeSystem \
            --error-exitcode=1 \
+           -I src \
           test/
