@@ -24,13 +24,15 @@ jobs:
         grep -q "check" libraries.txt || echo "check" >> libraries.txt
         
     - name: Build project
-      run: make all
-      
+      run: 
+          make all
+  
     - name: Run tests with sanitizers
       run: |
         make test
         # Verify tests were built successfully
         find test -name "test_*" -type f -executable | grep -q "test_" || exit 1
+        
         
     - name: Run Valgrind memory check
       run: |

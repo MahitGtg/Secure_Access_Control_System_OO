@@ -14,7 +14,6 @@
 #include <pthread.h>
 #include <stdint.h> // for uint8_t
 #include <arpa/inet.h>
-#include "banned.h"
 
 // Implementation of panic function
 static void panic(const char *msg)

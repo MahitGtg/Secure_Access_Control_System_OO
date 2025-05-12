@@ -7,6 +7,15 @@
 #include <sodium.h>
 #include "../src/account.h"
 #include "../src/logging.h"
+#include <sodium.h>
+
+#ifndef ck_assert_ptr_null    /* fixes the check error */
+#define ck_assert_ptr_null(ptr) ck_assert_ptr_eq(ptr, NULL)
+#endif
+
+#ifndef ck_assert_ptr_nonnull
+#define ck_assert_ptr_nonnull(ptr) ck_assert_ptr_ne(ptr, NULL)
+#endif
 
 // Test fixtures
 static account_t *test_acc;
@@ -32,11 +41,11 @@ void setup_account(account_t *acc, const char *password)
     memset(acc, 0, sizeof(account_t));
     strncpy(acc->userid, "testuser", USER_ID_LENGTH - 1);
     strncpy(acc->email, "test@example.com", EMAIL_LENGTH - 1);
-
+    
     // Fix the truncation warning
     strncpy(acc->birthdate, "2000-01-01", BIRTHDATE_LENGTH - 1);
     acc->birthdate[BIRTHDATE_LENGTH - 1] = '\0'; // Ensure null-termination
-
+    
     if (!account_update_password(acc, password))
     {
         fprintf(stderr, "Failed to set initial password\n");
@@ -131,16 +140,16 @@ START_TEST(test_validate_password)
 {
     account_t acc;
     setup_account(&acc, "TestPass123!");
-
+    
     // Correct password
     ck_assert(account_validate_password(&acc, "TestPass123!"));
-
+    
     // Wrong password
     ck_assert(!account_validate_password(&acc, "WrongPass"));
-
+    
     // Empty password
     ck_assert(!account_validate_password(&acc, ""));
-
+    
     // Too long password
     char longpw[1100];
     memset(longpw, 'a', 1099);
@@ -154,20 +163,20 @@ START_TEST(test_update_password)
 {
     account_t acc;
     setup_account(&acc, "Start123!");
-
+    
     // Update to a new valid password
     ck_assert(account_update_password(&acc, "NewPass456!"));
     ck_assert(account_validate_password(&acc, "NewPass456!"));
     ck_assert(!account_validate_password(&acc, "Start123!"));
-
+    
     // Too short
     ck_assert(!account_update_password(&acc, "aB1!"));
-
+    
     // Not complex enough
     ck_assert(!account_update_password(&acc, "alllowercase"));
     ck_assert(!account_update_password(&acc, "ALLUPPERCASE"));
     ck_assert(!account_update_password(&acc, "12345678"));
-
+    
     // Too long
     char longpw[1100];
     memset(longpw, 'a', 1099);
@@ -465,7 +474,7 @@ Suite *account_suite(void)
 
     // Add our new login and summary tests
     add_login_tests_to_suite(s);
-
+    
     return s;
 }
 // Main function for running tests
@@ -477,14 +486,14 @@ int main(void)
         fprintf(stderr, "libsodium init failed\n");
         return 1;
     }
-
+    
     // Create and run test suite
     Suite *s = account_suite();
     SRunner *sr = srunner_create(s);
-
+    
     srunner_run_all(sr, CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
-
+    
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
