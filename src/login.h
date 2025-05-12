@@ -23,6 +23,7 @@ typedef struct {
   int account_id;         // ID of the authenticated account
   time_t session_start;   // login start time
   time_t expiration_time; // session expiry time
+  char    *session_token;  // Cryptographically secure random token
 } login_session_data_t;
 
 typedef enum {
