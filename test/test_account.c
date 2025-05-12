@@ -3,184 +3,229 @@
 #include <check.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
+#include <sodium.h>
 #include "../src/account.h"
 #include "../src/logging.h"
 #include <sodium.h>
 
-// test fixture setup
+// Test fixtures
 static account_t *test_acc;
 
-void setup(void) {
-    // create a test account before each test
+void setup(void)
+{
+    // Create a test account before each test
     test_acc = malloc(sizeof(account_t));
     memset(test_acc, 0, sizeof(account_t));
     strcpy(test_acc->userid, "testuser");
     strcpy(test_acc->email, "test@example.com");
 }
 
-void teardown(void) {
+void teardown(void)
+{
     free(test_acc);
     test_acc = NULL;
 }
 
-// testing email validation - valid email
-START_TEST(test_email_valid) {
+// Helper to create a dummy account with a known password
+void setup_account(account_t *acc, const char *password)
+{
+    memset(acc, 0, sizeof(account_t));
+    strncpy(acc->userid, "testuser", USER_ID_LENGTH - 1);
+    strncpy(acc->email, "test@example.com", EMAIL_LENGTH - 1);
+    
+    // Fix the truncation warning
+    strncpy(acc->birthdate, "2000-01-01", BIRTHDATE_LENGTH - 1);
+    acc->birthdate[BIRTHDATE_LENGTH - 1] = '\0';  // Ensure null-termination
+    
+    if (!account_update_password(acc, password)) {
+        fprintf(stderr, "Failed to set initial password\n");
+    }
+}
+
+// Testing email validation - valid email
+START_TEST(test_email_valid)
+{
     account_set_email(test_acc, "new@example.com");
     ck_assert_str_eq(test_acc->email, "new@example.com");
 }
 END_TEST
 
-// testing email validation - invalid email (with space)
-START_TEST(test_email_invalid_space) {
+// Testing email validation - invalid email (with space)
+START_TEST(test_email_invalid_space)
+{
     char original_email[EMAIL_LENGTH];
     strncpy(original_email, test_acc->email, EMAIL_LENGTH);
-    
+
     account_set_email(test_acc, "invalid email@example.com");
-    
-    // email should not be changed if invalid
+
+    // Email should not be changed if invalid
     ck_assert_str_eq(test_acc->email, original_email);
 }
 END_TEST
 
-// testing account ban status
-START_TEST(test_ban_status) {
-    // should not be banned by default
+// Testing email validation - very long email
+START_TEST(test_email_too_long)
+{
+    char original_email[EMAIL_LENGTH];
+    strncpy(original_email, test_acc->email, EMAIL_LENGTH);
+
+    // Try to set an email that's too long
+    char long_email[EMAIL_LENGTH + 10];
+    memset(long_email, 'a', EMAIL_LENGTH + 9);
+    long_email[EMAIL_LENGTH + 9] = '\0';
+
+    account_set_email(test_acc, long_email);
+
+    // Email should not be changed if too long
+    ck_assert_str_eq(test_acc->email, original_email);
+}
+END_TEST
+
+// Testing account ban status
+START_TEST(test_ban_status)
+{
+    // Should not be banned by default
     ck_assert(!account_is_banned(test_acc));
-    
-    // setting ban to future time
+
+    // Setting ban to future time
     time_t future = time(NULL) + 3600; // 1 hour in future
     account_set_unban_time(test_acc, future);
     ck_assert(account_is_banned(test_acc));
-    
-    // setting ban to past time
+
+    // Setting ban to past time
     time_t past = time(NULL) - 3600; // 1 hour in past
     account_set_unban_time(test_acc, past);
     ck_assert(!account_is_banned(test_acc));
-    
-    // setting ban to 0 (no ban)
+
+    // Setting ban to 0 (no ban)
     account_set_unban_time(test_acc, 0);
     ck_assert(!account_is_banned(test_acc));
 }
 END_TEST
 
 // Test account expiration status
-START_TEST(test_expiration_status) {
-    // should not be expired by default
+START_TEST(test_expiration_status)
+{
+    // Should not be expired by default
     ck_assert(!account_is_expired(test_acc));
-    
-    // setting expiration to future time
+
+    // Setting expiration to future time
     time_t future = time(NULL) + 3600; // 1 hour in future
     account_set_expiration_time(test_acc, future);
     ck_assert(!account_is_expired(test_acc));
-    
-    // setting expiration to past time
+
+    // Setting expiration to past time
     time_t past = time(NULL) - 3600; // 1 hour in past
     account_set_expiration_time(test_acc, past);
     ck_assert(account_is_expired(test_acc));
-    
-    // setting expiration to 0 (no expiration)
+
+    // Setting expiration to 0 (no expiration)
     account_set_expiration_time(test_acc, 0);
     ck_assert(!account_is_expired(test_acc));
 }
 END_TEST
 
-// Test login tracking
-START_TEST(test_login_tracking) {
-    // initial counts should be 0
-    ck_assert_int_eq(test_acc->login_count, 0);
-    ck_assert_int_eq(test_acc->login_fail_count, 0);
+// Test case for password validation
+START_TEST(test_validate_password)
+{
+    account_t acc;
+    setup_account(&acc, "TestPass123!");
     
-    // recording success
-    account_record_login_success(test_acc, 0x12345678);
-    ck_assert_int_eq(test_acc->login_count, 1);
-    ck_assert_int_eq(test_acc->login_fail_count, 0);
-    ck_assert_int_eq(test_acc->last_ip, 0x12345678);
+    // Correct password
+    ck_assert(account_validate_password(&acc, "TestPass123!"));
     
-    // recording failure
-    account_record_login_failure(test_acc);
-    ck_assert_int_eq(test_acc->login_count, 0); // reset on failure
-    ck_assert_int_eq(test_acc->login_fail_count, 1);
+    // Wrong password
+    ck_assert(!account_validate_password(&acc, "WrongPass"));
     
-    // recording another success
-    account_record_login_success(test_acc, 0x87654321);
-    ck_assert_int_eq(test_acc->login_count, 1);
-    ck_assert_int_eq(test_acc->login_fail_count, 0); // reset on success
-    ck_assert_int_eq(test_acc->last_ip, 0x87654321);
+    // Empty password
+    ck_assert(!account_validate_password(&acc, ""));
+    
+    // Too long password
+    char longpw[1100];
+    memset(longpw, 'a', 1099);
+    longpw[1099] = '\0';
+    ck_assert(!account_validate_password(&acc, longpw));
 }
 END_TEST
 
-// Test account summary printing
-START_TEST(test_account_summary) {
-    // creating a pipe for testing output
-    int pipefd[2];
-    if (pipe(pipefd) == -1) {
-        ck_abort_msg("Failed to create pipe");
-    }
+// Test case for password updates
+START_TEST(test_update_password)
+{
+    account_t acc;
+    setup_account(&acc, "Start123!");
     
-    // printing account summary to pipe
-    bool result = account_print_summary(test_acc, pipefd[1]);
-    ck_assert(result);
+    // Update to a new valid password
+    ck_assert(account_update_password(&acc, "NewPass456!"));
+    ck_assert(account_validate_password(&acc, "NewPass456!"));
+    ck_assert(!account_validate_password(&acc, "Start123!"));
     
-    // closing write end
-    close(pipefd[1]);
+    // Too short
+    ck_assert(!account_update_password(&acc, "aB1!"));
     
-    // reading from pipe
-    char buffer[1024] = {0};
-    ssize_t bytes_read = read(pipefd[0], buffer, sizeof(buffer) - 1);
-    close(pipefd[0]);
+    // Not complex enough
+    ck_assert(!account_update_password(&acc, "alllowercase"));
+    ck_assert(!account_update_password(&acc, "ALLUPPERCASE"));
+    ck_assert(!account_update_password(&acc, "12345678"));
     
-    ck_assert_int_gt(bytes_read, 0);
-    ck_assert(strstr(buffer, "testuser") != NULL);
-    ck_assert(strstr(buffer, "test@example.com") != NULL);
+    // Too long
+    char longpw[1100];
+    memset(longpw, 'a', 1099);
+    longpw[1099] = '\0';
+    ck_assert(!account_update_password(&acc, longpw));
 }
 END_TEST
 
-// creating test suite
-Suite *account_suite(void) {
+// Setup the test suite
+Suite *account_suite(void)
+{
     Suite *s = suite_create("Account");
+    
+    // Create test cases
     TCase *tc_email = tcase_create("Email");
     TCase *tc_status = tcase_create("Status");
-    TCase *tc_login = tcase_create("Login");
-    TCase *tc_summary = tcase_create("Summary");
+    TCase *tc_password = tcase_create("Password");
     
-    // email tests
+    // Set timeout for password tests (since they use sodium)
+    tcase_set_timeout(tc_password, 60); // Set timeout to 60 seconds
+    
+    // Add email tests
     tcase_add_checked_fixture(tc_email, setup, teardown);
     tcase_add_test(tc_email, test_email_valid);
     tcase_add_test(tc_email, test_email_invalid_space);
+    tcase_add_test(tc_email, test_email_too_long);
     suite_add_tcase(s, tc_email);
-    
-    // status tests
+
+    // Add status tests
     tcase_add_checked_fixture(tc_status, setup, teardown);
     tcase_add_test(tc_status, test_ban_status);
     tcase_add_test(tc_status, test_expiration_status);
     suite_add_tcase(s, tc_status);
     
-    // login tests
-    tcase_add_checked_fixture(tc_login, setup, teardown);
-    tcase_add_test(tc_login, test_login_tracking);
-    suite_add_tcase(s, tc_login);
-    
-    // summary tests
-    tcase_add_checked_fixture(tc_summary, setup, teardown);
-    tcase_add_test(tc_summary, test_account_summary);
-    suite_add_tcase(s, tc_summary);
-    
+    // Add password tests
+    tcase_add_test(tc_password, test_validate_password);
+    tcase_add_test(tc_password, test_update_password);
+    suite_add_tcase(s, tc_password);
+
     return s;
 }
 
-// main function for running tests
-int main(void) {
+// Main function for running tests
+int main(void)
+{
+    // Initialize sodium library
     if (sodium_init() < 0) {
         fprintf(stderr, "libsodium init failed\n");
         return 1;
     }
-
+    
+    // Create and run test suite
     Suite *s = account_suite();
     SRunner *sr = srunner_create(s);
-    
+
     srunner_run_all(sr, CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
-    
+
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

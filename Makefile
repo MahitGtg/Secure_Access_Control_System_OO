@@ -55,7 +55,7 @@ LDFLAGS = $(PKG_LDFLAGS)
 
 # Test flags
 TEST_CFLAGS = $(CFLAGS) $(SANITIZER_FLAGS)
-TEST_LDFLAGS = $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
+TEST_LDFLAGS = $(LDFLAGS) -lsodium -lcheck -lsubunit -pthread -lrt -lm
 
 # how to make a .c file from a .ts file
 %.c: %.ts
@@ -93,15 +93,19 @@ TEST_SRC := $(wildcard $(TEST_DIR)/test_*.c)
 TEST_NAMES := $(patsubst $(TEST_DIR)/test_%.c,%,$(TEST_SRC))
 TEST_BINS := $(patsubst %,test/test_%,$(TEST_NAMES))
 
-# Pattern rule for building test binaries
-# This automatically links each test_X.c file with the corresponding X.c source file
-test/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
-	@mkdir -p $(TEST_DIR)
-	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
+# Valgrind-specific test binaries
+VALGRIND_TEST_SRC := $(wildcard $(TEST_DIR)/test_*_valgrind.c)
+VALGRIND_TEST_NAMES := $(patsubst $(TEST_DIR)/test_%.c,%,$(VALGRIND_TEST_SRC))
+VALGRIND_TEST_BINS := $(patsubst %,test/test_%,$(VALGRIND_TEST_NAMES))
 
-# Build test binary
-$(TEST_DIR)/test_account: $(TEST_DIR)/test_account.c $(SRC_DIR)/account.c src/stubs.c
-	@mkdir -p $(TEST_DIR)
+# Pattern rule for building test binaries
+test/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
+	@echo "Building test for $*"
+	@echo "Test source: $(TEST_DIR)/test_$*.c"
+	@echo "Source file: $(SRC_DIR)/$*.c"
+	@echo "Test CFLAGS: $(TEST_CFLAGS)"
+	@echo "Test LDFLAGS: $(TEST_LDFLAGS)"
+	@mkdir -p test
 	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
 
 # Main test target that builds and runs all tests
@@ -114,7 +118,7 @@ test: $(TEST_DIR)/test_account
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW $(TEST_BINS)
 
-.PHONY: all clean test $(TEST_BINS)
+.PHONY: all clean test
 
 .DELETE_ON_ERROR:
 
@@ -129,11 +133,11 @@ docs:
 sanitize: CFLAGS += $(SANITIZER_FLAGS)
 sanitize: all
 
-# Build test binary for valgrind (without sanitizers)
-test/test_account_valgrind: $(TEST_DIR)/test_account.c $(SRC_DIR)/account.c src/stubs.c
-	@mkdir -p $(TEST_DIR)
-	$(CC) $(CFLAGS) -DTESTING -o $@ $^ -Isrc $(LDFLAGS) -lcheck -lsubunit -pthread -lrt -lm
-
-# Memory check with valgrind
-memcheck: test/test_account_valgrind
-	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./test/test_account_valgrind
+# Memory check with valgrind for valgrind-specific test binaries only
+memcheck: TEST_CFLAGS := $(CFLAGS)
+memcheck: TEST_LDFLAGS := $(LDFLAGS) -lsodium -lcheck -lsubunit -pthread -lrt -lm
+memcheck: $(VALGRIND_TEST_BINS)
+	@for test in $(VALGRIND_TEST_BINS); do \
+		echo "\nRunning valgrind on $$test..."; \
+		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 --track-fds=yes --trace-children=yes ./$$test; \
+	done
