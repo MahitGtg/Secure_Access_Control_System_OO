@@ -723,7 +723,7 @@ bool account_print_summary(const account_t *acct, int fd)
     if (!safe_fd_write(fd, buffer))
         return false;
 
-    // Print login statistics
+    // Print login statistic
     snprintf(buffer, sizeof(buffer), "Login Count: %u\n", acct->login_count);
     if (!safe_fd_write(fd, buffer))
         return false;
