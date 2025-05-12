@@ -62,3 +62,23 @@ ex_output.c
 
 # Build artifacts
 bin/afl_fuzzer
+
+# Check framework source
+check-0.15.2/
+check-0.15.2.tar.gz
+*.ts
+
+# Log files
+*.log
+fuzzing.log
+
+# Coverage reports
+*.gcov
+*.gcda
+*.gcno
+coverage/
+
+# Core dump files
+core
+core.*
+vgcore.*
