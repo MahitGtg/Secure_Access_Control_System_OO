@@ -9,7 +9,6 @@
 #include <ctype.h> /* For isdigit() */
 #include <pthread.h>
 #include <stdbool.h>
-#include "banned.h"
 
 // Implementation of panic function
 static void panic(const char *msg)

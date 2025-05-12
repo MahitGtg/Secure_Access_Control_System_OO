@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include "banned.h"
 
 // bogus implementation of main that links in all account and login
 // functions. You can delete this file and replace it with your own main

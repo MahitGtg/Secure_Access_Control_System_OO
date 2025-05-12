@@ -19,6 +19,7 @@
  #include <errno.h>         // errno
  #include <string.h>        // strlen(), strncpy()
  #include <time.h>          // time_t
+#include "banned.h"
  
  #define SESSION_DURATION    (3600)    // 1 hour
  #define MAX_USERNAME_LEN    (256)     // Max bytes to log for username
@@ -39,11 +40,19 @@
   *   - false otherwise
   */
  static bool fd_is_valid(int fd) {
- if (fd < 0) return false;
- int flags = fcntl(fd, F_GETFL);
- if (flags == -1 && errno == EBADF) return false;
- return true;
- }
+    if (fd < 0) return false;
+    
+    // Check if fd exists
+    int flags = fcntl(fd, F_GETFL);
+    if (flags == -1) return false;
+    
+    // Check if fd is writable
+    if ((flags & O_WRONLY) == 0 && (flags & O_RDWR) == 0) {
+        return false;
+    }
+    
+    return true;
+}
  
  /**
   * handle_login
