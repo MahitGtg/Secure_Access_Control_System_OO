@@ -8,13 +8,15 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include "banned.h"
 
 // bogus implementation of main that links in all account and login
 // functions. You can delete this file and replace it with your own main
 // function(s).
-int main(int argc, char *argv[]) {
-  (void) argc;
-  (void) argv;
+int main(int argc, char *argv[])
+{
+  (void)argc;
+  (void)argv;
 
   account_t *acc = account_create("", "", "", "");
   account_free(acc);
@@ -27,9 +29,8 @@ int main(int argc, char *argv[]) {
   account_set_unban_time(acc, 0);
   account_set_expiration_time(acc, 0);
   account_set_email(acc, "");
-  (void) account_print_summary(acc, STDOUT_FILENO);
-  (void) res;
-  handle_login("", "", 0, 0, STDOUT_FILENO, STDOUT_FILENO, NULL);
+  (void)account_print_summary(acc, STDOUT_FILENO);
+  (void)res;
+  handle_login("", "", 0, 0, STDOUT_FILENO, NULL);
   return 0;
 }
-
