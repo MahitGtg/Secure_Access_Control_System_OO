@@ -12,7 +12,6 @@
 #include "db.h"
 #include "logging.h"
 #include <sodium.h>
-#include "banned.h"
 
 // AFL persistent mode requires these declarations
 #ifdef __AFL_HAVE_MANUAL_CONTROL
