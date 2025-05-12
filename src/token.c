@@ -7,7 +7,6 @@
 #include <fcntl.h>
 #include <time.h>
 #include <stdbool.h>
-#include "banned.h"
 
 #define TOKEN_BYTES 32
 #define TOKEN_HEXLEN (TOKEN_BYTES * 2)
