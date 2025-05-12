@@ -23,13 +23,18 @@ jobs:
         grep -q "libsodium" libraries.txt || echo "libsodium" >> libraries.txt
         grep -q "check" libraries.txt || echo "check" >> libraries.txt
         
-    - name: Build and run tests with ASan
+    - name: Build project
+      run: 
+          make all
+  
+    - name: Run tests with sanitizers
       run: |
         make test
         # Verify tests were built successfully
         find test -name "test_*" -type f -executable | grep -q "test_" || exit 1
         
-    - name: Build and run tests with Valgrind
+        
+    - name: Run Valgrind memory check
       run: |
         # Build Valgrind-specific binaries first
         make memcheck

@@ -109,9 +109,15 @@ test/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/%.c src/stubs.c
 	$(CC) $(TEST_CFLAGS) -DTESTING -o $@ $^ -Isrc $(TEST_LDFLAGS)
 
 # Main test target that builds and runs all tests
-test: $(TEST_DIR)/test_account
-	@echo "\nRunning test/test_account..."
-	@./test/test_account
+test: $(TEST_BINS)
+	@for test in $(TEST_BINS); do \
+		echo "\nRunning $$test..."; \
+		./$$test; \
+		if [ $$? -ne 0 ]; then \
+			echo "$$test failed!"; \
+			exit 1; \
+		fi; \
+	done
 	@echo "\nAll tests passed!"
 
 # Clean all build artifacts and test binaries
