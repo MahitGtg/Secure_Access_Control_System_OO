@@ -19,6 +19,7 @@
 #include <errno.h>   // errno
 #include <string.h>  // strlen(), strncpy()
 #include <time.h>    // time_t
+#include "banned.h"
 
 #define SESSION_DURATION (3600) // 1 hour
 #define MAX_USERNAME_LEN (256)  // Max bytes to log for username
