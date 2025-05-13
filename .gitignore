@@ -39,3 +39,10 @@ Thumbs.db
 # Dependency files that might be generated
 compile_commands.json
 .clangd/.vscode/
+
+# Ignore fuzzer binaries and outputs
+build/fuzz/
+test/fuzz/output/
+test/fuzz/corpus/
+# Ignore crash files
+**/crash-*

@@ -212,7 +212,7 @@ END_TEST
 // Test account_free with NULL
 START_TEST(test_account_free_null)
 {
-    account_free(NULL); 
+    account_free(NULL);
     // This test passes if it doesn't crash
 }
 END_TEST
@@ -249,30 +249,30 @@ START_TEST(test_record_login_success)
     account_t acc;
     memset(&acc, 0, sizeof(account_t));
     strncpy(acc.userid, "testuser", USER_ID_LENGTH - 1);
-    
+
     // Set initial values
     acc.login_count = 5;
     acc.login_fail_count = 3;
     acc.last_login_time = 0;
     acc.last_ip = 0;
-    
+
     // Test IP address (192.168.1.100)
     ip4_addr_t test_ip = (192U << 24) | (168U << 16) | (1U << 8) | 100U;
-    
+
     // Record login success
     account_record_login_success(&acc, test_ip);
-    
+
     // Verify the login count was incremented
     ck_assert_uint_eq(acc.login_count, 6);
-    
+
     // Verify the login failure count was reset
     ck_assert_uint_eq(acc.login_fail_count, 0);
-    
+
     // Verify the last login time was set (should be recent)
     time_t current_time = time(NULL);
     ck_assert(acc.last_login_time >= (time_t)(current_time - 5));
     ck_assert(acc.last_login_time <= (time_t)(current_time + 5));
-    
+
     // Verify the last IP was recorded correctly
     ck_assert_uint_eq(acc.last_ip, test_ip);
 }
@@ -285,24 +285,24 @@ START_TEST(test_record_login_failure)
     account_t acc;
     memset(&acc, 0, sizeof(account_t));
     strncpy(acc.userid, "testuser", USER_ID_LENGTH - 1);
-    
+
     // Set initial values
     acc.login_count = 5;
     acc.login_fail_count = 3;
-    
+
     // Record login failure
     account_record_login_failure(&acc);
-    
+
     // Verify the login failure count was incremented
     ck_assert_uint_eq(acc.login_fail_count, 4);
-    
+
     // Verify the login count was reset
     ck_assert_uint_eq(acc.login_count, 0);
-    
+
     // Test overflow protection
     acc.login_fail_count = UINT_MAX;
     account_record_login_failure(&acc);
-    
+
     // Verify the login failure count doesn't overflow
     ck_assert_uint_eq(acc.login_fail_count, UINT_MAX);
 }
@@ -313,43 +313,44 @@ START_TEST(test_account_print_summary)
 {
     // Create a test pipe for capturing the output
     int pipefd[2];
-    if (pipe(pipefd) == -1) {
+    if (pipe(pipefd) == -1)
+    {
         ck_abort_msg("Failed to create pipe");
     }
-    
+
     // Create a test account with known values
     account_t acc;
     memset(&acc, 0, sizeof(account_t));
-    
+
     strncpy(acc.userid, "testuser", USER_ID_LENGTH - 1);
     strncpy(acc.email, "test@example.com", EMAIL_LENGTH - 1);
     memcpy(acc.birthdate, "2000-01-01", BIRTHDATE_LENGTH);
-    
+
     acc.login_count = 42;
     acc.login_fail_count = 7;
-    
+
     // Set a known IP (192.168.1.100)
     acc.last_ip = (192U << 24) | (168U << 16) | (1U << 8) | 100U;
-    
+
     // Set last login time to a fixed value for testing
     acc.last_login_time = 1620000000; // May 3, 2021
-    
+
     // Print the summary to the pipe
     bool result = account_print_summary(&acc, pipefd[1]);
     ck_assert_msg(result, "account_print_summary returned false");
-    
+
     // Close the write end of the pipe
     close(pipefd[1]);
-    
+
     // Read the output from the pipe
     char buffer[1024];
     ssize_t bytes_read = read(pipefd[0], buffer, sizeof(buffer) - 1);
     ck_assert_int_gt(bytes_read, 0);
     buffer[bytes_read] = '\0';
-    
+
     // Close the read end of the pipe
     close(pipefd[0]);
-    
+
     // Check that the output contains the expected information
     ck_assert_msg(strstr(buffer, "testuser") != NULL, "Output missing userid");
     ck_assert_msg(strstr(buffer, "test@example.com") != NULL, "Output missing email");
@@ -357,7 +358,7 @@ START_TEST(test_account_print_summary)
     ck_assert_msg(strstr(buffer, "42") != NULL, "Output missing login count");
     ck_assert_msg(strstr(buffer, "7") != NULL, "Output missing login failure count");
     ck_assert_msg(strstr(buffer, "192.168.1.100") != NULL, "Output missing IP address");
-    
+
     // The time string format might vary, but should at least contain "2021"
     ck_assert_msg(strstr(buffer, "2021") != NULL, "Output missing or incorrect timestamp");
 }
@@ -368,10 +369,66 @@ START_TEST(test_account_print_summary_invalid_fd)
 {
     account_t acc;
     memset(&acc, 0, sizeof(account_t));
-    
+
     // This should return false, not crash
     bool result = account_print_summary(&acc, -1);
     ck_assert_msg(!result, "account_print_summary with invalid fd should return false");
+}
+END_TEST
+
+// Helper function for safe IP address construction
+static ip4_addr_t safe_construct_ip(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+{
+    return ((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)c << 8) | (uint32_t)d;
+}
+
+// Test IP address construction safety
+START_TEST(test_ip_address_construction)
+{
+    // Test edge cases that would overflow with signed int
+    ip4_addr_t ip1 = safe_construct_ip(255, 255, 255, 255); // Max IP
+    ck_assert_uint_eq(ip1, 0xFFFFFFFF);
+
+    ip4_addr_t ip2 = safe_construct_ip(128, 0, 0, 0); // High bit set
+    ck_assert_uint_eq(ip2, 0x80000000);
+
+    // Test recording these IPs
+    account_t acc;
+    memset(&acc, 0, sizeof(account_t));
+
+    account_record_login_success(&acc, ip1);
+    ck_assert_uint_eq(acc.last_ip, ip1);
+
+    account_record_login_success(&acc, ip2);
+    ck_assert_uint_eq(acc.last_ip, ip2);
+}
+END_TEST
+
+// Test password handling safety
+START_TEST(test_password_handling_safety)
+{
+    account_t acc;
+    memset(&acc, 0, sizeof(account_t));
+
+    // Test NULL password
+    ck_assert(!account_update_password(&acc, NULL));
+
+    // Test empty password
+    ck_assert(!account_update_password(&acc, ""));
+
+    // Test very long password (should be rejected before reaching libsodium)
+    char long_pw[10000];
+    memset(long_pw, 'a', sizeof(long_pw) - 1);
+    long_pw[sizeof(long_pw) - 1] = '\0';
+    ck_assert(!account_update_password(&acc, long_pw));
+
+    // Test password with null bytes
+    const char pw_with_null[] = "Pass\0word";
+    ck_assert(!account_update_password(&acc, pw_with_null));
+
+    // Test password with invalid UTF-8
+    unsigned char invalid_utf8[] = {0xFF, 0xFE, 0xFD, 0x00};
+    ck_assert(!account_update_password(&acc, (char *)invalid_utf8));
 }
 END_TEST
 
@@ -383,12 +440,20 @@ void add_login_tests_to_suite(Suite *s)
     tcase_add_test(tc_login, test_record_login_success);
     tcase_add_test(tc_login, test_record_login_failure);
     suite_add_tcase(s, tc_login);
-    
+
     // Create a test case for account summary
     TCase *tc_summary = tcase_create("Summary");
     tcase_add_test(tc_summary, test_account_print_summary);
     tcase_add_test(tc_summary, test_account_print_summary_invalid_fd);
     suite_add_tcase(s, tc_summary);
+}
+
+void add_security_tests_to_suite(Suite *s)
+{
+    TCase *tc_security = tcase_create("Security");
+    tcase_add_test(tc_security, test_ip_address_construction);
+    tcase_add_test(tc_security, test_password_handling_safety);
+    suite_add_tcase(s, tc_security);
 }
 
 Suite *account_suite(void)
@@ -428,6 +493,9 @@ Suite *account_suite(void)
 
     // Add our new login and summary tests
     add_login_tests_to_suite(s);
+
+    // Add our new security tests
+    add_security_tests_to_suite(s);
 
     return s;
 }

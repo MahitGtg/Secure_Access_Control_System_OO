@@ -123,6 +123,7 @@ test: $(TEST_BINS)
 # Clean all build artifacts and test binaries
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW $(TEST_BINS)
+	rm -rf build/fuzz/* test/fuzz/output/* test/fuzz/corpus/* test/fuzz/output/*/crash-* test/fuzz/output/*/crash* test/fuzz/output/crash-* test/fuzz/corpus/*
 
 .PHONY: all clean test
 
@@ -147,3 +148,64 @@ memcheck: $(VALGRIND_TEST_BINS)
 		echo "\nRunning valgrind on $$test..."; \
 		valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 --track-fds=yes --trace-children=yes ./$$test; \
 	done
+
+# Fuzzing targets
+FUZZ_DIR = test/fuzz
+FUZZ_BUILD_DIR = build/fuzz
+FUZZ_CORPUS_DIR = test/fuzz/corpus
+FUZZ_OUTPUT_DIR = test/fuzz/output
+
+FUZZ_TARGETS = account login password
+FUZZ_BINARIES = $(addprefix $(FUZZ_BUILD_DIR)/fuzz_, $(FUZZ_TARGETS))
+
+# Fuzzing flags for building fuzz targets with libFuzzer
+FUZZ_CC = clang
+FUZZ_CFLAGS = -g -O1 -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer -std=c11 -pedantic-errors -Wall -Wextra -I$(SRC_DIR)
+
+# Create corpus directories for each target
+$(FUZZ_CORPUS_DIR)/%:
+	mkdir -p $@
+
+# Create output directories for each target
+$(FUZZ_OUTPUT_DIR)/%:
+	mkdir -p $@
+
+# Rule to build fuzz targets
+$(FUZZ_BUILD_DIR)/fuzz_%: $(FUZZ_DIR)/fuzz_%.c $(SRC_DIR)/%.c | $(FUZZ_BUILD_DIR)
+	$(FUZZ_CC) $(FUZZ_CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Special rule for fuzz_account which needs login.c
+$(FUZZ_BUILD_DIR)/fuzz_account: $(FUZZ_DIR)/fuzz_account.c $(SRC_DIR)/account.c $(SRC_DIR)/login.c | $(FUZZ_BUILD_DIR)
+	$(FUZZ_CC) $(FUZZ_CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Special rule for fuzz_login which needs account.c
+$(FUZZ_BUILD_DIR)/fuzz_login: $(FUZZ_DIR)/fuzz_login.c $(SRC_DIR)/login.c $(SRC_DIR)/account.c | $(FUZZ_BUILD_DIR)
+	$(FUZZ_CC) $(FUZZ_CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Special rule for fuzz_password which needs account.c
+$(FUZZ_BUILD_DIR)/fuzz_password: $(FUZZ_DIR)/fuzz_password.c $(SRC_DIR)/account.c | $(FUZZ_BUILD_DIR)
+	$(FUZZ_CC) $(FUZZ_CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Create the fuzz build directory
+$(FUZZ_BUILD_DIR):
+	mkdir -p $@
+
+# Build all fuzzing targets
+fuzz: install-dependencies $(FUZZ_BINARIES) $(foreach t, $(FUZZ_TARGETS), $(FUZZ_CORPUS_DIR)/$(t)) $(foreach t, $(FUZZ_TARGETS), $(FUZZ_OUTPUT_DIR)/$(t))
+	@echo "Fuzzing targets built. Run 'make run-fuzz' to start fuzzing."
+
+# Run a single fuzzer
+run-fuzz-%: $(FUZZ_BUILD_DIR)/fuzz_% $(FUZZ_CORPUS_DIR)/% $(FUZZ_OUTPUT_DIR)/%
+	$(FUZZ_BUILD_DIR)/fuzz_$* -max_total_time=$(FUZZ_TIME) $(FUZZ_CORPUS_DIR)/$* $(FUZZ_OUTPUT_DIR)/$*
+
+# Run all fuzzers 
+run-fuzz: fuzz
+	@echo "Running all fuzzers for $(FUZZ_TIME) seconds each"
+	@for target in $(FUZZ_TARGETS); do \
+		echo "Fuzzing $$target..."; \
+		$(FUZZ_BUILD_DIR)/fuzz_$$target -max_total_time=$(FUZZ_TIME) $(FUZZ_CORPUS_DIR)/$$target $(FUZZ_OUTPUT_DIR)/$$target; \
+	done
+	@echo "Fuzzing completed. Check output directories for results."
+
+# Set default fuzzing time (in seconds) if not provided
+FUZZ_TIME ?= 60

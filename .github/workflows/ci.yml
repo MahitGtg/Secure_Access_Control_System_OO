@@ -64,7 +64,8 @@ jobs:
     - name: Run Cppcheck on test files
       run: |
         # Check test files but with fewer restrictions
-        cppcheck --enable=all --suppress=missingIncludeSystem \
-           --error-exitcode=1 \
-           -I src \
-          test/
+        find test -name "*.c" -not -path "*/fuzz/*" -print0 | xargs -0 \
+          cppcheck --enable=all --suppress=missingIncludeSystem \
+          --error-exitcode=1 \
+          -I src
+

@@ -3,3 +3,6 @@
 libsodium-dev
 check
 valgrind
+clang
+llvm
+libclang-rt-14-dev
