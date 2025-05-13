@@ -5,7 +5,7 @@
 #include "../../src/account.h"
 #include "../../src/logging.h"
 
-void log_message(log_level_t level, const char *fmt, ...)
+static void log_message(log_level_t level, const char *fmt, ...)
 {
     // Silent during fuzzing
     (void)level;

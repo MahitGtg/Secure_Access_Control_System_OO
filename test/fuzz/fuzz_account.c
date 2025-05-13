@@ -41,7 +41,7 @@ bool account_lookup_by_userid(const char *userid, account_t *result)
 }
 
 // For libfuzzer
-int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
+static int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     // Need minimum data to fuzz effectively
     if (size < 8)

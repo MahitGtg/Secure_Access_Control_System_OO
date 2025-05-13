@@ -325,7 +325,7 @@ START_TEST(test_account_print_summary)
     strncpy(acc.userid, "testuser", USER_ID_LENGTH - 1);
     strncpy(acc.email, "test@example.com", EMAIL_LENGTH - 1);
     memcpy(acc.birthdate, "2000-01-01", BIRTHDATE_LENGTH);
-    
+
     acc.login_count = 42;
     acc.login_fail_count = 7;
 
@@ -423,7 +423,7 @@ START_TEST(test_password_handling_safety)
     ck_assert(!account_update_password(&acc, long_pw));
 
     // Test password with null bytes
-    char pw_with_null[] = "Pass\0word";
+    const char pw_with_null[] = "Pass\0word";
     ck_assert(!account_update_password(&acc, pw_with_null));
 
     // Test password with invalid UTF-8
