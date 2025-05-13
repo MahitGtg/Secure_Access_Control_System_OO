@@ -5,6 +5,4 @@ check
 valgrind
 clang
 llvm
-clang
-llvm
 libclang-rt-14-dev
