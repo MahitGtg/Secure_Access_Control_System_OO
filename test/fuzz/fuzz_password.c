@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include "account.h"
-#include "logging.h"
+#include "../../src/account.h"
+#include "../../src/logging.h"
 
 void log_message(log_level_t level, const char *fmt, ...)
 {

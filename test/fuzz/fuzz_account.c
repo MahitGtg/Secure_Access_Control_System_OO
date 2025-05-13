@@ -4,9 +4,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "login.h"
-#include "db.h"
-#include "logging.h"
+#include "../../src/login.h"
+#include "../../src/db.h"
+#include "../../src/logging.h"
 
 // Stub for log_message
 void log_message(log_level_t level, const char *fmt, ...)
