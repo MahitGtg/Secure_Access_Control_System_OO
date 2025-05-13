@@ -14,7 +14,6 @@
 #include <pthread.h>
 #include <stdint.h> // for uint8_t
 #include <arpa/inet.h>
-#include "banned.h"
 
 // Implementation of panic function
 static void panic(const char *msg)
@@ -32,7 +31,7 @@ static bool is_valid_email(const char *email)
 {
     if (!strchr(email, '@'))
     {
-        log_message(LOG_ERROR, "account_create: Invalid email format (missing @)"); 
+        log_message(LOG_ERROR, "account_create: Invalid email format (missing @)");
         return false;
     }
     for (const char *p = email; *p; ++p)
@@ -135,7 +134,7 @@ account_t *account_create(const char *userid, const char *plaintext_password,
     strncpy(acc->email, email, EMAIL_LENGTH - 1);
     acc->email[EMAIL_LENGTH - 1] = '\0';
     // Use memcpy for birthdate: fixed length, not null-terminated
-    memcpy(acc->birthdate, birthdate, BIRTHDATE_LENGTH); // Safe: exactly 10 bytes, no null terminator
+    memcpy(acc->birthdate, birthdate, BIRTHDATE_LENGTH);
 
     if (sodium_init() < 0)
     {
@@ -258,20 +257,47 @@ bool account_validate_password(const account_t *acc, const char *plaintext_passw
  */
 bool account_update_password(account_t *acc, const char *new_plaintext_password)
 {
-    /* Check password length - empty passwords are not allowed */
-    size_t password_len = strlen(new_plaintext_password);
-    if (password_len == 0)
+    /* Extra checks for NULL and length */
+    if (new_plaintext_password == NULL)
     {
-        log_message(LOG_ERROR, "account_update_password: empty password not allowed");
+        log_message(LOG_ERROR, "account_update_password: NULL password");
+        return false;
+    }
+    if (strlen(new_plaintext_password) == 0 || strlen(new_plaintext_password) > 1024)
+    {
+        log_message(LOG_ERROR, "account_update_password: invalid password length: %zu", strlen(new_plaintext_password));
+        return false;
+    }
+    if (new_plaintext_password[strlen(new_plaintext_password)] != '\0')
+    {
+        log_message(LOG_ERROR, "account_update_password: password not null-terminated");
         return false;
     }
 
-    /* Check password length - too long passwords are not allowed (prevent DoS) */
-    if (password_len > 1024)
+    /* Check for printable ASCII characters in password and log password in hex */
+    char hexbuf[2048 + 1] = {0};
+    for (size_t i = 0; i < strlen(new_plaintext_password); i++)
     {
-        log_message(LOG_ERROR, "account_update_password: password too long (max 1024 chars)");
-        return false;
+        if ((unsigned char)new_plaintext_password[i] < 32 || (unsigned char)new_plaintext_password[i] > 126)
+        {
+            log_message(LOG_ERROR, "account_update_password: password contains non-printable ASCII at pos %zu (byte=0x%02x)", i, (unsigned char)new_plaintext_password[i]);
+            // Log the full password in hex for debugging
+            size_t j;
+            for (j = 0; j < strlen(new_plaintext_password) && j < 1024; j++)
+            {
+                sprintf(hexbuf + j * 2, "%02x", (unsigned char)new_plaintext_password[j]);
+            }
+            log_message(LOG_ERROR, "account_update_password: password hex: %s", hexbuf);
+            return false;
+        }
     }
+    // Log the password in hex for debugging
+    size_t j;
+    for (j = 0; j < strlen(new_plaintext_password) && j < 1024; j++)
+    {
+        sprintf(hexbuf + j * 2, "%02x", (unsigned char)new_plaintext_password[j]);
+    }
+    log_message(LOG_DEBUG, "account_update_password: password hex: %s", hexbuf);
 
     /* Password complexity requirements */
     bool has_uppercase = false;
@@ -279,7 +305,7 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
     bool has_digit = false;
     bool has_special = false;
 
-    for (size_t i = 0; i < password_len; i++)
+    for (size_t i = 0; i < strlen(new_plaintext_password); i++)
     {
         char c = new_plaintext_password[i];
         if (isupper((unsigned char)c))
@@ -293,7 +319,7 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
     }
 
     /* Minimum length requirement */
-    if (password_len < 8)
+    if (strlen(new_plaintext_password) < 8)
     {
         log_message(LOG_ERROR, "account_update_password: password too short (min 8 chars)");
         return false;
@@ -336,14 +362,19 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
     unsigned long long ops_limit = crypto_pwhash_OPSLIMIT_INTERACTIVE * 2;
     size_t mem_limit = crypto_pwhash_MEMLIMIT_INTERACTIVE;
 
-    if (crypto_pwhash_str(
-            hashed_password,
-            new_plaintext_password,
-            password_len,
-            ops_limit,
-            mem_limit) != 0)
+    log_message(LOG_DEBUG, "account_update_password: Attempting to hash password of length %zu", strlen(new_plaintext_password));
+    log_message(LOG_DEBUG, "account_update_password: Using ops_limit=%llu, mem_limit=%zu", ops_limit, mem_limit);
+
+    int hash_result = crypto_pwhash_str(
+        hashed_password,
+        new_plaintext_password,
+        strlen(new_plaintext_password),
+        ops_limit,
+        mem_limit);
+
+    if (hash_result != 0)
     {
-        log_message(LOG_ERROR, "account_update_password: password hashing failed");
+        log_message(LOG_ERROR, "account_update_password: password hashing failed with error %d", hash_result);
         return false;
     }
 

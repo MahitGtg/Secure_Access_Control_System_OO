@@ -76,7 +76,7 @@ $(TARGET): $(OBJ_FILES)
 # c
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
-	./add_banned_header.pl $
+	./add_banned_header.pl $<
 	$(CC) $(CFLAGS) $(INC_FLAGS) -MMD -MP -c $< -o $@
 
 # targets for each object file
@@ -123,6 +123,7 @@ test: $(TEST_BINS)
 # Clean all build artifacts and test binaries
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET) src/check*.c src/*.BAK src/*.NEW $(TEST_BINS)
+	rm -rf build/fuzz/* test/fuzz/output/* test/fuzz/corpus/* test/fuzz/output/*/crash-* test/fuzz/output/*/crash* test/fuzz/output/crash-* test/fuzz/corpus/*
 
 .PHONY: all clean test
 
@@ -171,6 +172,18 @@ $(FUZZ_OUTPUT_DIR)/%:
 
 # Rule to build fuzz targets
 $(FUZZ_BUILD_DIR)/fuzz_%: $(FUZZ_DIR)/fuzz_%.c $(SRC_DIR)/%.c | $(FUZZ_BUILD_DIR)
+	$(FUZZ_CC) $(FUZZ_CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Special rule for fuzz_account which needs login.c
+$(FUZZ_BUILD_DIR)/fuzz_account: $(FUZZ_DIR)/fuzz_account.c $(SRC_DIR)/account.c $(SRC_DIR)/login.c | $(FUZZ_BUILD_DIR)
+	$(FUZZ_CC) $(FUZZ_CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Special rule for fuzz_login which needs account.c
+$(FUZZ_BUILD_DIR)/fuzz_login: $(FUZZ_DIR)/fuzz_login.c $(SRC_DIR)/login.c $(SRC_DIR)/account.c | $(FUZZ_BUILD_DIR)
+	$(FUZZ_CC) $(FUZZ_CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Special rule for fuzz_password which needs account.c
+$(FUZZ_BUILD_DIR)/fuzz_password: $(FUZZ_DIR)/fuzz_password.c $(SRC_DIR)/account.c | $(FUZZ_BUILD_DIR)
 	$(FUZZ_CC) $(FUZZ_CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Create the fuzz build directory
