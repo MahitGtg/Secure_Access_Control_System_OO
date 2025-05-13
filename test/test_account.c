@@ -9,6 +9,15 @@
 #include "../src/account.h"
 #include "../src/logging.h"
 
+/* Define missing check macros */
+#ifndef ck_assert_ptr_null
+#define ck_assert_ptr_null(ptr) ck_assert_ptr_eq(ptr, NULL)
+#endif
+
+#ifndef ck_assert_ptr_nonnull
+#define ck_assert_ptr_nonnull(ptr) ck_assert_ptr_ne(ptr, NULL)
+#endif
+
 // Test fixtures
 static account_t *test_acc;
 
@@ -34,9 +43,9 @@ void setup_account(account_t *acc, const char *password)
     strncpy(acc->userid, "testuser", USER_ID_LENGTH - 1);
     strncpy(acc->email, "test@example.com", EMAIL_LENGTH - 1);
 
-    // Fix the truncation warning
-    strncpy(acc->birthdate, "2000-01-01", BIRTHDATE_LENGTH - 1);
-    acc->birthdate[BIRTHDATE_LENGTH - 1] = '\0'; // Ensure null-termination
+    // Fix the truncation warning by using memcpy instead of strncpy
+    // since birthdate is exactly 10 chars with no room for null terminator
+    memcpy(acc->birthdate, "2000-01-01", BIRTHDATE_LENGTH);
 
     if (!account_update_password(acc, password))
     {
@@ -184,7 +193,7 @@ START_TEST(test_account_create_valid)
     ck_assert_ptr_nonnull(acc);
     ck_assert_str_eq(acc->userid, "user1");
     ck_assert_str_eq(acc->email, "user1@example.com");
-    ck_assert_str_eq(acc->birthdate, "2000-01-01");
+    ck_assert(memcmp(acc->birthdate, "2000-01-01", BIRTHDATE_LENGTH) == 0);
     ck_assert(acc->password_hash[0] != '\0');
     account_free(acc);
 }
@@ -215,7 +224,7 @@ START_TEST(test_account_create_birthdate_memcpy)
     ck_assert_ptr_nonnull(acc);
     // Check that birthdate is copied exactly, no null terminator
     const char expected[11] = "1990-01-01";
-    ck_assert(memcmp(acc->birthdate, expected, 10) == 0);
+    ck_assert(memcmp(acc->birthdate, expected, BIRTHDATE_LENGTH) == 0);
     account_free(acc);
 }
 END_TEST
@@ -314,7 +323,7 @@ START_TEST(test_account_print_summary)
     
     strncpy(acc.userid, "testuser", USER_ID_LENGTH - 1);
     strncpy(acc.email, "test@example.com", EMAIL_LENGTH - 1);
-    memcpy(acc.birthdate, "2000-01-01", 10);
+    memcpy(acc.birthdate, "2000-01-01", BIRTHDATE_LENGTH);
     
     acc.login_count = 42;
     acc.login_fail_count = 7;
