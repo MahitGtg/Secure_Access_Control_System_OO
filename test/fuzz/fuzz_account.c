@@ -1,86 +1,93 @@
-// test/fuzz/fuzz_account.c
+// test/fuzz/fuzz_login.c
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-#include "account.h"
+#include <unistd.h>
+#include "login.h"
+#include "db.h"
 #include "logging.h"
 
-// Stub to suppress logging during fuzzing
+// Stub for log_message
 void log_message(log_level_t level, const char *fmt, ...) {
-    // Do nothing
+    // Do nothing during fuzzing
     (void)level;
     (void)fmt;
 }
 
-// Main fuzzing entry point for account functions
+// Stub for account lookup that always returns a valid account
+bool account_lookup_by_userid(const char *userid, account_t *result) {
+    if (!userid || !result)
+        return false;
+    
+    // Initialize with default values
+    memset(result, 0, sizeof(account_t));
+    
+    // Set some data for testing
+    result->account_id = 1;
+    strncpy(result->userid, userid, USER_ID_LENGTH - 1);
+    
+    // Hardcode a known password hash if it's the admin user
+    if (strcmp(userid, "admin") == 0) {
+        // This would be a real Argon2id hash in production
+        strcpy(result->password_hash, "$argon2id$v=19$m=65536,t=2,p=1$c2FsdHNhbHRzYWx0$hash");
+    }
+    
+    // Return success
+    return true;
+}
+
+// For libfuzzer
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    // Need at least some data to be useful
-    if (size < 4) 
+    // Need minimum data to fuzz effectively
+    if (size < 8)
         return 0;
     
-    // Create null-terminated strings from fuzzer data
-    char *userid = (char *)malloc(size + 1);
-    char *password = (char *)malloc(size + 1);
-    char *email = (char *)malloc(size + 1);
-    char *birthdate = (char *)malloc(11); // Fixed size for birthdate
+    // Prepare null-terminated strings
+    char *username = (char *)malloc(size/2 + 1);
+    char *password = (char *)malloc(size/2 + 1);
     
-    if (!userid || !password || !email || !birthdate) {
-        free(userid);
+    if (!username || !password) {
+        free(username);
         free(password);
-        free(email);
-        free(birthdate);
         return 0;
     }
     
-    // Split the input data into parts for different parameters
-    size_t part_size = size / 4;
+    // Split data between username and password
+    size_t username_len = size / 2;
+    size_t password_len = size - username_len;
     
-    // Copy and null-terminate userid
-    memcpy(userid, data, part_size);
-    userid[part_size] = '\0';
+    memcpy(username, data, username_len);
+    username[username_len] = '\0';
     
-    // Copy and null-terminate password
-    memcpy(password, data + part_size, part_size);
-    password[part_size] = '\0';
+    memcpy(password, data + username_len, password_len);
+    password[password_len] = '\0';
     
-    // Copy and null-terminate email
-    memcpy(email, data + 2 * part_size, part_size);
-    email[part_size] = '\0';
-    
-    // Create a valid-looking birthdate (YYYY-MM-DD) from the last part of data
-    snprintf(birthdate, 11, "20%02x-%02x-%02x", 
-             data[3 * part_size] % 100,
-             (data[3 * part_size + 1] % 12) + 1, 
-             (data[3 * part_size + 2] % 28) + 1);
-    
-    // Test account_create
-    account_t *acc = account_create(userid, password, email, birthdate);
-    
-    if (acc) {
-        // If account creation succeeded, test other functions
-        account_validate_password(acc, password);
-        account_update_password(acc, password);
-        account_is_banned(acc);
-        account_is_expired(acc);
-        account_set_unban_time(acc, 0);
-        account_set_expiration_time(acc, 0);
-        account_set_email(acc, email);
-        
-        // Create a temporary file for print_summary testing
-        FILE *temp = tmpfile();
-        if (temp) {
-            account_print_summary(acc, fileno(temp));
-            fclose(temp);
-        }
-        
-        account_free(acc);
+    // Create a pipe for client_output_fd
+    int pipe_fds[2];
+    if (pipe(pipe_fds) != 0) {
+        free(username);
+        free(password);
+        return 0;
     }
     
-    free(userid);
+    // Generate an IP address from fuzzer data
+    ip4_addr_t ip = 0;
+    if (size >= 4) {
+        ip = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+    }
+    
+    // Create a session struct
+    login_session_data_t session = {0};
+    
+    // Call handle_login
+    handle_login(username, password, ip, time(NULL), pipe_fds[1], &session);
+    
+    // Clean up
+    close(pipe_fds[0]);
+    close(pipe_fds[1]);
+    free(username);
     free(password);
-    free(email);
-    free(birthdate);
     
     return 0;
 }

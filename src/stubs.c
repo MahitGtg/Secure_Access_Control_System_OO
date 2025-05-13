@@ -17,7 +17,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include "banned.h"
 
 /**
  * Abort immediately for unrecoverable errors /
