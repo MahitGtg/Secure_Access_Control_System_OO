@@ -14,7 +14,6 @@
 #include <pthread.h>
 #include <stdint.h> // for uint8_t
 #include <arpa/inet.h>
-#include "banned.h"
 
 // Implementation of panic function
 static void panic(const char *msg)
@@ -30,12 +29,10 @@ static pthread_mutex_t account_mutex = PTHREAD_MUTEX_INITIALIZER;
 // Helper: check if email is ASCII printable and has no spaces
 static bool is_valid_email(const char *email)
 {
-    if (!email)
-        return false;
     if (!strchr(email, '@'))
     {
         log_message(LOG_ERROR, "account_create: Invalid email format (missing @)"); 
-        return false; // Return false, not NULL
+        return false;
     }
     for (const char *p = email; *p; ++p)
     {
@@ -48,8 +45,6 @@ static bool is_valid_email(const char *email)
 // Helper: check if birthdate is YYYY-MM-DD and valid
 static bool is_valid_birthdate(const char *birthdate)
 {
-    if (!birthdate)
-        return false;
     // Must be exactly 10 chars: YYYY-MM-DD
     if (strlen(birthdate) != 10)
         return false;
@@ -108,11 +103,7 @@ static bool is_valid_birthdate(const char *birthdate)
 account_t *account_create(const char *userid, const char *plaintext_password,
                           const char *email, const char *birthdate)
 {
-    if (!userid || !plaintext_password || !email || !birthdate)
-    {
-        log_message(LOG_ERROR, "account_create: NULL argument provided");
-        return NULL;
-    }
+    // Check for empty strings - we can do this since we know these are null-terminated
     if (!*userid || !*plaintext_password || !*email || !*birthdate)
     {
         log_message(LOG_ERROR, "account_create: Empty string argument provided");
@@ -173,6 +164,7 @@ account_t *account_create(const char *userid, const char *plaintext_password,
  */
 void account_free(account_t *acc)
 {
+    // Keep this NULL check since it's explicitly allowed (acc can be NULL)
     if (!acc)
         return;
     sodium_memzero(acc, sizeof(account_t));
@@ -197,19 +189,6 @@ void account_free(account_t *acc)
  */
 bool account_validate_password(const account_t *acc, const char *plaintext_password)
 {
-    /* Parameter validation */
-    if (!acc)
-    {
-        log_message(LOG_ERROR, "account_validate_password: account pointer is NULL");
-        return false;
-    }
-
-    if (!plaintext_password)
-    {
-        log_message(LOG_ERROR, "account_validate_password: password pointer is NULL");
-        return false;
-    }
-
     /* Check if password hash is empty */
     if (acc->password_hash[0] == '\0')
     {
@@ -278,19 +257,6 @@ bool account_validate_password(const account_t *acc, const char *plaintext_passw
  */
 bool account_update_password(account_t *acc, const char *new_plaintext_password)
 {
-    /* Parameter validation */
-    if (!acc)
-    {
-        log_message(LOG_ERROR, "account_update_password: account pointer is NULL");
-        return false;
-    }
-
-    if (!new_plaintext_password)
-    {
-        log_message(LOG_ERROR, "account_update_password: password pointer is NULL");
-        return false;
-    }
-
     /* Check password length - empty passwords are not allowed */
     size_t password_len = strlen(new_plaintext_password);
     if (password_len == 0)
@@ -376,7 +342,6 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
             ops_limit,
             mem_limit) != 0)
     {
-
         log_message(LOG_ERROR, "account_update_password: password hashing failed");
         return false;
     }
@@ -421,12 +386,6 @@ bool account_update_password(account_t *acc, const char *new_plaintext_password)
  */
 void account_record_login_success(account_t *acc, ip4_addr_t ip)
 {
-    if (!acc)
-    {
-        log_message(LOG_ERROR, "account_record_login_success: NULL account pointer");
-        return;
-    }
-
     // Get current time with error handling
     time_t current_time = time(NULL);
     if (current_time == (time_t)-1)
@@ -481,12 +440,6 @@ void account_record_login_success(account_t *acc, ip4_addr_t ip)
  */
 void account_record_login_failure(account_t *acc)
 {
-    if (!acc)
-    {
-        log_message(LOG_ERROR, "account_record_login_failure: NULL account pointer");
-        return;
-    }
-
     // Thread safe - acquire lock
     pthread_mutex_lock(&account_mutex);
 
@@ -523,6 +476,7 @@ void account_record_login_failure(account_t *acc)
  */
 bool account_is_banned(const account_t *acc)
 {
+    // Keep this NULL check for security - fail secure behavior is important here
     if (acc == NULL)
     {
         log_message(LOG_ERROR, "Null pointer passed to account_is_banned");
@@ -569,6 +523,7 @@ bool account_is_banned(const account_t *acc)
  */
 bool account_is_expired(const account_t *acc)
 {
+    // Keep this NULL check for security - fail secure behavior is important here
     if (acc == NULL)
     {
         log_message(LOG_ERROR, "Null pointer passed to account_is_expired");
@@ -616,13 +571,6 @@ bool account_is_expired(const account_t *acc)
  */
 void account_set_unban_time(account_t *acc, time_t t)
 {
-    if (acc == NULL)
-    {
-        log_message(LOG_ERROR, "Null pointer passed to account_set_unban_time");
-        panic("Null pointer in account_set_unban_time"); // critical error - abort
-        return;
-    }
-
     // thread safe - acquire lock
     pthread_mutex_lock(&account_mutex);
 
@@ -650,13 +598,6 @@ void account_set_unban_time(account_t *acc, time_t t)
  */
 void account_set_expiration_time(account_t *acc, time_t t)
 {
-    if (acc == NULL)
-    {
-        log_message(LOG_ERROR, "Null pointer passed to account_set_expiration_time");
-        panic("Null pointer in account_set_expiration_time"); // critical error - abort
-        return;
-    }
-
     // checking if expiration time is in the past
     time_t current_time = time(NULL);
     if (current_time != (time_t)-1 && t != 0 && t < current_time)
@@ -692,14 +633,6 @@ void account_set_expiration_time(account_t *acc, time_t t)
  */
 void account_set_email(account_t *acc, const char *new_email)
 {
-    // checking for NULL pointers
-    if (acc == NULL || new_email == NULL)
-    {
-        log_message(LOG_ERROR, "Null pointer passed to account_set_email");
-        panic("Null pointer in account_set_email"); // critical error - abort
-        return;
-    }
-
     // using strlen for length check since we're checking length anyway
     size_t email_len = strlen(new_email);
 
@@ -755,12 +688,7 @@ static bool safe_fd_write(int fd, const char *str)
  */
 bool account_print_summary(const account_t *acct, int fd)
 {
-    if (!acct)
-    {
-        log_message(LOG_ERROR, "account_print_summary: NULL account pointer");
-        return false;
-    }
-
+    // Validate fd but not acct (per project specs)
     if (fd < 0)
     {
         log_message(LOG_ERROR, "account_print_summary: Invalid file descriptor");
@@ -795,7 +723,7 @@ bool account_print_summary(const account_t *acct, int fd)
     if (!safe_fd_write(fd, buffer))
         return false;
 
-    // Print login statistics
+    // Print login statistic
     snprintf(buffer, sizeof(buffer), "Login Count: %u\n", acct->login_count);
     if (!safe_fd_write(fd, buffer))
         return false;
