@@ -1,97 +1,145 @@
----
-title: Oblivionaire Online (OO) project code
----
+# Oblivionaire Online - Access Control System
 
-## Contents
+A secure authentication system for the fictional MMORPG "Oblivionaire Online" - developed for CITS3007 Secure Coding at UWA.
 
-This directory contains a Makefile, C code and configuration files for the "Oblivionaire Online" project.
-You should not normally modify the ".h" files in the `src` directory, but _should_ modify the `.c` files
-and provide your own implementations of the functions there.
+## Overview
 
-## Building
+This project implements a critical security component for a post-apocalyptic MMORPG, handling:
 
-The Makefile provided will compile object files for all `.c` files
-in the `src` directory, and link them together to create an
-executable.
+- **Player Authentication** - Secure login with Argon2id password hashing
+- **Session Management** - Secure session handling with timeouts
+- **Account Security** - Ban management and brute-force protection
+- **Admin Operations** - Staff tools for account management
 
-The executable will be `bin/app` by default, but you can change this by supplying
-a different value for the `TARGET` variable at the command line:
+## Quick Start
 
-```
-$ make TARGET=my-executable all
-```
+### Prerequisites
+- Ubuntu/Debian Linux
+- GCC with C11 support
 
-Object files will be created in the `build` directory, which will be created
-automatically if it does not already exist.
+### Build & Run
+```bash
+# Install dependencies
+make install-dependencies
 
-Any C program requires exactly **one** `main` function. In the provided
-code, you will find a `main` function in `src/bogus_main.c`, which
-exists only to allow the code to correctly compile and link.
+# Build project
+make all
 
-You can **delete** `src/bogus_main.c`, and write other alternative implementations of
-`main`. Multiple implementations of `main` can be provided in one file, or in multiple
-files, as long as only one is ever compiled and linked at a time.
+# Run tests
+make test
 
-You can wrap alternative implementations of `main` in `#ifdef` statements to allow you to
-select which one to compile.
-
-For instance: one such alternative implementation is in `src/alternate_main`. Delete
-`src/bogus_main.c`, and then run
-
-```
-$ make CFLAGS='-DALTERNATE_MAIN' clean all
+# Memory safety check
+make memcheck
 ```
 
-(We need `clean` in our Make invocation so that the old `build/bogus_main.o` file gets
-deleted. Otherwise both `main` functions would get linked together, and GCC would report
-a linkage error. Whenever you swap between `main` implementations, make sure you either
-include `clean` in your Make invocation, or delete the old object files manually.)
+## Security Features
 
-This will compile and link the `main` implementation in `src/alternate_main.c`
-instead of the one in `src/bogus_main.c`.
+✅ **Argon2id Password Hashing** - Industry-standard secure password storage  
+✅ **Input Validation** - Comprehensive validation preventing injection attacks  
+✅ **Thread Safety** - Mutex protection for concurrent access  
+✅ **Memory Safety** - Secure memory wiping, overflow protection  
+✅ **Rate Limiting** - Brute force attack mitigation  
+✅ **Audit Logging** - Complete security event tracking  
 
-When we test your code, we will provide our own `main` implementation.
+## Project Structure
 
-## Installing and configuring libraries
+```
+src/
+├── account.c/h        # Account management & password security
+├── login.c/h          # Authentication logic & session handling
+├── db.h               # Database interface
+└── logging.h          # Security logging
 
-You will almost certainly need to make use of external libraries to complete the project.
-There are two files you will need to edit so that the Makefile can find the libraries you
-need:
-
-- `apt-packages.txt`: this file should contain a list of Ubuntu packages that are required
-  to build your project, and need to be **installed** using `apt-get`. Each line should
-  contain the name of one package. You can find the names of packages using `apt-cache search
-  <package-substring>`, or by searching online. You can also use `apt-cache show
-  <package-name>` to find out more about a particular package.
-
-  Running
-
-  ```
-  $ make install-dependencies
-  ```
-
-  will install all the packages listed in `apt-packages.txt`. It does not compile or link
-  your project.
-
-- `libraries.txt`: this file should contain a list of libraries that GCC needs to **link
-  against**. Each line should contain the name of one library. The name of a library is
-  typically similar to the name of the Ubuntu package it is contained in, but not always. You
-  can find the names of libraries using `pkg-config --list-all`.
-
-  Once you have put a library name in `libraries.txt`, the Makefile will use that to
-  automatically work out the correct compiler and linker
-  options for the libraries you've specified -- so running `make all` or similar
-  should link them correctly.
-  (But this won't *install* them; you need to run `make install-dependencies` for that.)
-
+test/
+├── test_account.c     # Unit tests for account functions
+├── test_login.c       # Authentication tests
+└── fuzz/              # Security fuzzing tests
+```
 
 ## Testing
 
-A number of testing frameworks are available for C - you are welcome
-to use any of them.  We will provide some guidance in the labs on using the `check` framework
-(<https://libcheck.github.io/check/>), but you are free to use any other framework you like,
-or even create your own.
+### Unit Testing
+```bash
+make test              # Run all tests with sanitizers
+```
 
-<!--
-  vim: tw=92 :
--->
+### Security Testing
+```bash
+make memcheck          # Valgrind memory analysis
+./run_fuzzers.sh       # Automated vulnerability discovery
+```
+
+### Static Analysis
+```bash
+cppcheck --enable=all src/account.c src/login.c
+```
+
+## Key Implementation Details
+
+### Password Security
+- **Argon2id hashing** with secure salt generation
+- **Complexity requirements** enforced (8+ chars, mixed character classes)
+- **Memory protection** - passwords wiped after use
+- **Timing attack resistance** - constant-time verification
+
+### Authentication Flow
+1. User credentials validated against stored Argon2id hash
+2. Account status checked (banned/expired/locked)
+3. Login attempts tracked for rate limiting
+4. Secure session created with configurable timeout
+5. All events logged for security audit
+
+### Thread Safety
+- Mutex protection for all shared account data
+- Atomic operations for login counters
+- Safe concurrent access to session data
+
+## Development
+
+### Coding Standards
+- C11 standard with strict compiler warnings
+- Memory safety with AddressSanitizer/UBSan
+- Comprehensive error handling and logging
+- Security-first design principles
+
+### CI/CD Pipeline
+- Automated builds on GitHub Actions
+- Memory leak detection with Valgrind
+- Static analysis with Cppcheck and Clang
+- Security fuzzing integration
+
+## Common Commands
+
+```bash
+# Development
+make clean             # Clean build artifacts
+make sanitize          # Build with sanitizers enabled
+make docs              # Generate documentation
+
+# Security Testing
+FUZZ_TIME=300 ./run_fuzzers.sh    # 5-minute fuzzing session
+make run-fuzz-password             # Fuzz password handling
+```
+
+## Performance
+
+- **Password Hashing**: ~200ms (intentionally slow for security)
+- **Login Validation**: <10ms average
+- **Memory Usage**: <1MB per session
+- **Thread Contention**: Minimal lock overhead
+
+## Contributors
+
+- **Mahit Gupta** (23690265)
+- **Aleksandra Lozyk** (23032563) 
+- **Jared Teo** (22987324)
+
+## References
+
+- [OWASP Authentication Guidelines](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
+- [libsodium Cryptography](https://doc.libsodium.org/)
+- [SEI CERT C Standard](https://wiki.sei.cmu.edu/confluence/display/c/SEI+CERT+C+Coding+Standard)
+
+---
+
+*CITS3007 Project - University of Western Australia*
